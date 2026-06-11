@@ -79,6 +79,151 @@ db.connect((err) => {
     console.log('✅ Подключено к MySQL');
 });
 
+// ==================== АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦ ====================
+
+// Функция для создания таблиц при первом запуске
+function createTables() {
+    console.log('📦 Проверка и создание таблиц...');
+
+    // 1. Таблица пользователей
+    const createUsersTable = `
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            role ENUM('user', 'admin') DEFAULT 'user',
+            full_name VARCHAR(100) NULL,
+            avatar VARCHAR(255) NULL DEFAULT '/images/default-avatar.png',
+            phone VARCHAR(20) NULL,
+            bio TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            last_login TIMESTAMP NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `;
+
+    // 2. Таблица провинций
+    const createProvincesTable = `
+        CREATE TABLE IF NOT EXISTS provinces (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            gdp_2017 DECIMAL(15,2),
+            gdp_2018 DECIMAL(15,2),
+            gdp_2019 DECIMAL(15,2),
+            gdp_2020 DECIMAL(15,2),
+            gdp_2021 DECIMAL(15,2),
+            gdp_2022 DECIMAL(15,2),
+            investment_tax DECIMAL(5,2),
+            infrastructure_score DECIMAL(5,2),
+            education_score DECIMAL(5,2),
+            health_score DECIMAL(5,2),
+            population INT,
+            area DECIMAL(10,2),
+            description TEXT,
+            capital VARCHAR(100),
+            governor VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `;
+
+    // 3. Таблица заметок
+    const createNotesTable = `
+        CREATE TABLE IF NOT EXISTS notes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            province_id INT NOT NULL,
+            user_id INT NOT NULL,
+            title VARCHAR(200) NOT NULL,
+            content TEXT NOT NULL,
+            priority INT DEFAULT 3,
+            is_public BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (province_id) REFERENCES provinces(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX idx_province_id (province_id),
+            INDEX idx_user_id (user_id),
+            INDEX idx_priority (priority)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `;
+
+    // 4. Таблица лайков заметок
+    const createLikesTable = `
+        CREATE TABLE IF NOT EXISTS note_likes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            note_id INT NOT NULL,
+            user_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_like (note_id, user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `;
+
+    // Выполняем создание таблиц
+    db.query(createUsersTable, (err) => {
+        if (err) console.error('❌ Ошибка создания таблицы users:', err);
+        else console.log('✅ Таблица users готова');
+    });
+
+    db.query(createProvincesTable, (err) => {
+        if (err) console.error('❌ Ошибка создания таблицы provinces:', err);
+        else console.log('✅ Таблица provinces готова');
+    });
+
+    db.query(createNotesTable, (err) => {
+        if (err) console.error('❌ Ошибка создания таблицы notes:', err);
+        else console.log('✅ Таблица notes готова');
+    });
+
+    db.query(createLikesTable, (err) => {
+        if (err) console.error('❌ Ошибка создания таблицы note_likes:', err);
+        else console.log('✅ Таблица note_likes готова');
+    });
+
+    // После создания таблиц проверяем и добавляем начальные данные
+    setTimeout(() => {
+        checkAndInsertInitialData();
+    }, 1000);
+}
+
+// Функция для добавления начальных данных о провинциях
+function checkAndInsertInitialData() {
+    db.query('SELECT COUNT(*) as count FROM provinces', (err, results) => {
+        if (err) {
+            console.error('Ошибка проверки provinces:', err);
+            return;
+        }
+
+        if (results[0].count === 0) {
+            console.log('📝 Добавление начальных данных о провинциях...');
+            
+            const insertProvinces = `
+                INSERT INTO provinces (name, gdp_2017, gdp_2018, gdp_2019, gdp_2020, gdp_2021, gdp_2022, investment_tax, infrastructure_score, education_score, health_score, population, area, description, capital, governor) VALUES
+                ('Луанда', 120.5, 125.3, 130.1, 115.4, 128.7, 135.2, 15.5, 9.2, 8.7, 9.0, 8345000, 2418, 'Луанда - столица и крупнейший город Анголы, главный экономический центр страны.', 'Луанда', 'Мануэль Гомес'),
+                ('Уиже', 45.2, 47.1, 49.3, 44.5, 48.9, 52.1, 12.0, 6.5, 5.8, 6.2, 1450000, 58698, 'Уиже - провинция на севере Анголы, известная сельским хозяйством.', 'Уиже', 'Жозе Карвалью'),
+                ('Малаиже', 38.7, 40.2, 42.0, 38.1, 41.5, 44.8, 11.5, 5.9, 5.4, 5.7, 986000, 97602, 'Малаиже - провинция в центральной части Анголы.', 'Малаиже', 'Антонио Диаш'),
+                ('Бенгела', 55.6, 57.9, 60.4, 55.0, 59.8, 63.2, 13.0, 7.1, 6.8, 7.0, 2350000, 39827, 'Бенгела - важный портовый город на побережье Анголы.', 'Бенгела', 'Луиза Мария'),
+                ('Уамбо', 42.3, 44.0, 46.1, 41.8, 45.6, 48.9, 11.8, 6.2, 6.0, 6.3, 1890000, 35134, 'Уамбо - второй по величине город Анголы.', 'Уамбо', 'Карлос Фернандеш'),
+                ('Бие', 40.1, 41.8, 43.5, 39.2, 42.8, 45.6, 11.2, 6.0, 5.7, 6.1, 1455000, 70314, 'Бие - провинция в центральном нагорье Анголы.', 'Куито', 'Мария Сантуш'),
+                ('Моксико', 35.4, 36.9, 38.2, 34.5, 37.8, 40.1, 10.8, 5.5, 5.2, 5.4, 758000, 223023, 'Моксико - восточная провинция Анголы.', 'Луэна', 'Педру Гонсалвеш'),
+                ('Квандо-Кубанго', 32.1, 33.5, 34.8, 31.2, 34.1, 36.5, 10.5, 5.3, 5.0, 5.2, 534000, 199049, 'Квандо-Кубанго - крупнейшая провинция Анголы по площади.', 'Менонге', 'Франсишку Нето'),
+                ('Заире', 48.3, 50.1, 52.0, 47.5, 51.2, 54.8, 12.5, 6.8, 6.3, 6.7, 1095000, 40000, 'Заире - провинция на северо-западе Анголы.', 'Мбанза-Конго', 'Жуан Батишта'),
+                ('Кабинда', 62.4, 65.1, 67.8, 61.2, 66.5, 70.3, 14.0, 7.8, 7.2, 7.5, 716000, 7270, 'Кабинда - эксклав Анголы, крупный центр нефтедобычи.', 'Кабинда', 'Мигел Оливейра')
+            `;
+
+            db.query(insertProvinces, (err) => {
+                if (err) console.error('❌ Ошибка добавления данных:', err);
+                else console.log('✅ Добавлено 10 провинций');
+            });
+        } else {
+            console.log(`📊 В базе уже есть ${results[0].count} провинций`);
+        }
+    });
+}
+
+// Запускаем создание таблиц
+createTables();
+
 // Middleware для проверки авторизации
 const requireAuth = (req, res, next) => {
     if (!req.session.userId) {
