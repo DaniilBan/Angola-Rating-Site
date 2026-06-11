@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Экономика - Эволюция ВВП Анголы</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container">
+            <h1>📈 Экономическое развитие Анголы</h1>
+            <p>Динамика ВВП провинций 2017-2022</p>
+            <div class="nav-bar">
+                <nav>
+                    <a href="/">Главная</a>
+                    <a href="/rating.html">🏆 Рейтинг</a>
+                    <a href="/economy.html">📊 Экономика</a>
+                    <div class="auth-buttons">
+                        <a href="/login.html">Вход</a>
+                        <a href="/register.html">Регистрация</a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="card">
+            <h2>📊 Эволюция ВВП провинций (2017-2022)</h2>
+            <div class="chart-container">
+                <canvas id="gdpChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>💰 Налог на инвестиции vs ВВП</h2>
+            <div class="chart-container">
+                <canvas id="taxChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Динамика роста ВВП по провинциям</h2>
+            <div class="table-wrapper" id="growthTable">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script>
+        async function loadEconomyData() {
+            try {
+                const response = await fetch('/api/economy/gdp-trend');
+                const data = await response.json();
+                
+                // График ВВП
+                const years = ['2017', '2018', '2019', '2020', '2021', '2022'];
+                const datasets = data.map(prov => ({
+                    label: prov.name,
+                    data: [prov.gdp_2017, prov.gdp_2018, prov.gdp_2019, prov.gdp_2020, prov.gdp_2021, prov.gdp_2022],
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                }));
+                
+                const colors = ['#667eea', '#764ba2', '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#1abc9c', '#e67e22', '#9b59b6', '#34495e'];
+                datasets.forEach((ds, idx) => {
+                    ds.borderColor = colors[idx % colors.length];
+                    ds.backgroundColor = colors[idx % colors.length];
+                });
+                
+                new Chart(document.getElementById('gdpChart'), {
+                    type: 'line',
+                    data: { labels: years, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'bottom' },
+                            title: { display: true, text: 'Динамика ВВП провинций Анголы (млрд USD)' }
+                        },
+                        scales: { y: { beginAtZero: true, title: { display: true, text: 'ВВП (млрд USD)' } } }
+                    }
+                });
+                
+                // График налог vs ВВП
+                const taxResponse = await fetch('/api/economy/tax-comparison');
+                const taxData = await taxResponse.json();
+                
+                new Chart(document.getElementById('taxChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: taxData.map(p => p.name),
+                        datasets: [
+                            {
+                                label: 'Налог на инвестиции (%)',
+                                data: taxData.map(p => p.investment_tax),
+                                backgroundColor: '#e74c3c',
+                                yAxisID: 'y'
+                            },
+                            {
+                                label: 'ВВП 2022 (млрд USD)',
+                                data: taxData.map(p => p.gdp_2022),
+                                backgroundColor: '#3498db',
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'top' } },
+                        scales: {
+                            y: { title: { display: true, text: 'Налог (%)' }, beginAtZero: true },
+                            y1: { position: 'right', title: { display: true, text: 'ВВП (млрд USD)' }, beginAtZero: true }
+                        }
+                    }
+                });
+                
+                // Таблица роста
+                let growthHtml = '<table class="data-table"><thead><tr><th>Провинция</th><th>ВВП 2017</th><th>ВВП 2022</th><th>Рост (%)</th><th>Тенденция</th></tr></thead><tbody>';
+                
+                data.forEach(prov => {
+                    const growthClass = prov.growth_percent > 0 ? 'growth-positive' : 'growth-negative';
+                    const trend = prov.growth_percent > 0 ? '📈' : '📉';
+                    growthHtml += `<tr>
+                        <td><strong>${prov.name}</strong></td>
+                        <td>${prov.gdp_2017} млрд</td>
+                        <td>${prov.gdp_2022} млрд</td>
+                        <td class="${growthClass}">${prov.growth_percent}%</td>
+                        <td>${trend}</td>
+                    </tr>`;
+                });
+                growthHtml += '</tbody></table>';
+                document.getElementById('growthTable').innerHTML = growthHtml;
+                
+            } catch (error) {
+                console.error('Ошибка загрузки экономических данных:', error);
+            }
+        }
+        
+        loadEconomyData();
+        checkAuth();
+    </script>
+</body>
+</html>

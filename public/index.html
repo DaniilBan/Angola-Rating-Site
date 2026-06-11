@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Главная - Экономическое развитие Анголы</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .clickable-row:hover {
+            background-color: #e8f4f8 !important;
+            transform: scale(1.01);
+        }
+        .rating-rank-1 { background: linear-gradient(135deg, #ffd700, #ffed4e); font-weight: bold; }
+        .rating-rank-2 { background: linear-gradient(135deg, #c0c0c0, #e0e0e0); }
+        .rating-rank-3 { background: linear-gradient(135deg, #cd7f32, #e8a87c); }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container">
+            <h1>🇦🇴 Информационный ресурс Анголы</h1>
+            <p>Экономическое развитие провинций и рейтинг по правилу Коупленда</p>
+            <div class="nav-bar">
+                <nav>
+                    <a href="/">Главная</a>
+                    <a href="/rating.html">🏆 Рейтинг провинций</a>
+                    <a href="/economy.html">📊 Экономика</a>
+                    <div class="auth-buttons">
+                        <a href="/login.html">Вход</a>
+                        <a href="/register.html">Регистрация</a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="hero-section">
+            <h2>Добро пожаловать!</h2>
+            <p>Исследование экономического развития провинций Анголы с применением правила Коупленда</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Правило Коупленда</h3>
+                <p>Реализация алгоритма построения рейтинга провинций на основе множественных критериев</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💼</div>
+                <h3>Экономические показатели</h3>
+                <p>Анализ ВВП, инвестиций, инфраструктуры и социальных показателей</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h3>Динамика развития</h3>
+                <p>Отслеживание изменений экономических показателей с 2017 по 2022 год</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Рейтинг провинций (по правилу Коупленда)</h2>
+            <p>💡 <strong>Совет:</strong> Нажмите на любую провинцию, чтобы открыть карточку с подробной информацией и заметками</p>
+            <div class="table-wrapper" id="provincesTable">
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🎯 Цели и задачи проекта</h2>
+            <ul style="margin-left: 20px; line-height: 1.8;">
+                <li>✅ Исследовать предметную область экономического развития Анголы</li>
+                <li>✅ Выполнить программную реализацию правила Коупленда</li>
+                <li>✅ Разработать информационный ресурс для представления данных</li>
+                <li>✅ Создать систему авторизации и личные кабинеты</li>
+                <li>✅ Добавить систему заметок о провинциях</li>
+                <li>✅ Реализовать карточки провинций с детальной информацией</li>
+            </ul>
+        </div>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script>
+        // Отображение таблицы с рейтингом по правилу Коупленда
+        function renderProvincesTable(provinces) {
+            if (!provinces || provinces.length === 0) {
+                document.getElementById('provincesTable').innerHTML = '<p>Нет данных</p>';
+                return;
+            }
+            
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Место</th>
+                            <th>Провинция</th>
+                            <th>Счёт Коупленда</th>
+                            <th>ВВП 2022 (млрд USD)</th>
+                            <th>Налог на инвестиции (%)</th>
+                            <th>Инфраструктура (1-10)</th>
+                            <th>Образование (1-10)</th>
+                            <th>Здравоохранение (1-10)</th>
+                            <th>Население</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            provinces.forEach((prov, idx) => {
+                let rankClass = '';
+                if (idx === 0) rankClass = 'rating-rank-1';
+                if (idx === 1) rankClass = 'rating-rank-2';
+                if (idx === 2) rankClass = 'rating-rank-3';
+                
+                html += `
+                    <tr class="clickable-row ${rankClass}" onclick="window.location.href='/province-detail.html?id=${prov.id}'">
+                        <td><strong>${idx + 1}</strong></td>
+                        <td><strong>${prov.name}</strong></td>
+                        <td>${prov.copeland_score || 0}</td>
+                        <td>${prov.gdp_2022} млрд</td>
+                        <td>${prov.investment_tax}%</td>
+                        <td>${prov.infrastructure_score}/10</td>
+                        <td>${prov.education_score}/10</td>
+                        <td>${prov.health_score}/10</td>
+                        <td>${formatNumber(prov.population)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('provincesTable').innerHTML = html;
+        }
+        
+        // Загрузка рейтинга по правилу Коупленда
+        async function loadProvincesTable() {
+            try {
+                const response = await fetch('/api/rating/copeland');
+                const data = await response.json();
+                renderProvincesTable(data.rating);
+            } catch (error) {
+                console.error('Ошибка загрузки рейтинга:', error);
+                document.getElementById('provincesTable').innerHTML = '<p style="color: red;">Ошибка загрузки данных</p>';
+            }
+        }
+        
+        loadProvincesTable();
+        checkAuth();
+    </script>
+</body>
+</html>

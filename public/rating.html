@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Рейтинг провинций - Правило Коупленда</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .clickable-row:hover {
+            background-color: #e8f4f8 !important;
+        }
+        .sort-btn {
+            padding: 8px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .sort-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        .sort-btn.active {
+            background: #e74c3c;
+        }
+        .rating-rank-1 { background: linear-gradient(135deg, #ffd700, #ffed4e); font-weight: bold; }
+        .rating-rank-2 { background: linear-gradient(135deg, #c0c0c0, #e0e0e0); }
+        .rating-rank-3 { background: linear-gradient(135deg, #cd7f32, #e8a87c); }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container">
+            <h1>🏆 Рейтинг провинций Анголы</h1>
+            <p>Построен по правилу Коупленда на основе множественных критериев</p>
+            <div class="nav-bar">
+                <nav>
+                    <a href="/">Главная</a>
+                    <a href="/rating.html">🏆 Рейтинг</a>
+                    <a href="/economy.html">📊 Экономика</a>
+                    <div class="auth-buttons">
+                        <a href="/login.html">Вход</a>
+                        <a href="/register.html">Регистрация</a>
+                    </div>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Матрица мажоритарного отношения -->
+        <div class="card">
+            <h2>📊 Матрица мажоритарного отношения</h2>
+            <div class="table-wrapper" id="matrixContainer">
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <!-- Итоговый рейтинг с сортировкой -->
+        <div class="card">
+            <h2>🏅 Итоговый рейтинг провинций</h2>
+            <p>💡 <strong>Совет:</strong> Нажмите на провинцию, чтобы открыть карточку с подробной информацией</p>
+            
+            <!-- Блок сортировки только для итогового рейтинга -->
+            <div style="margin: 15px 0; padding: 10px; background: #f8f9fa; border-radius: 10px;">
+                <strong>🔽 Сортировка рейтинга:</strong>
+                <button onclick="sortRating('copeland')" class="sort-btn" id="sort-copeland">🏆 По правилу Коупленда</button>
+                <button onclick="sortRating('gdp')" class="sort-btn" id="sort-gdp">📈 По ВВП</button>
+                <button onclick="sortRating('tax')" class="sort-btn" id="sort-tax">💰 По налогу (мин)</button>
+                <button onclick="sortRating('infrastructure')" class="sort-btn" id="sort-infra">🏗️ По инфраструктуре</button>
+                <button onclick="sortRating('education')" class="sort-btn" id="sort-edu">🎓 По образованию</button>
+                <button onclick="sortRating('health')" class="sort-btn" id="sort-health">🏥 По здравоохранению</button>
+                <button onclick="sortRating('population')" class="sort-btn" id="sort-pop">👥 По населению</button>
+            </div>
+            
+            <div class="table-wrapper" id="ratingContainer">
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Критерии оценки</h2>
+            <ul style="margin-left: 20px; line-height: 1.8;">
+                <li>📈 ВВП 2022 года (максимизация)</li>
+                <li>💰 Налог на инвестиции (минимизация)</li>
+                <li>🏗️ Уровень развития инфраструктуры (максимизация)</li>
+                <li>🎓 Уровень образования (максимизация)</li>
+                <li>🏥 Уровень здравоохранения (максимизация)</li>
+                <li>👥 Численность населения (максимизация)</li>
+            </ul>
+            <p style="margin-top: 15px; font-style: italic;">
+                Правило Коупленда: каждая провинция сравнивается с другими по всем критериям. 
+                Победа в сравнении даёт +1 балл, поражение -1 балл. 
+                Итоговый рейтинг сортируется по сумме баллов.
+            </p>
+        </div>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script>
+        let currentRating = [];
+        let originalCopelandRating = [];
+
+        // Сортировка рейтинга
+        async function sortRating(sortType) {
+            console.log('Сортировка рейтинга по:', sortType);
+            
+            // Подсветка активной кнопки
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`sort-${sortType}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            
+            if (sortType === 'copeland') {
+                // Возвращаем исходный рейтинг Коупленда
+                renderRatingTable(originalCopelandRating);
+                return;
+            }
+            
+            // Сортируем текущий рейтинг по выбранному критерию
+            let sorted = [...currentRating];
+            
+            switch(sortType) {
+                case 'gdp':
+                    sorted.sort((a, b) => b.gdp_2022 - a.gdp_2022);
+                    break;
+                case 'tax':
+                    sorted.sort((a, b) => a.investment_tax - b.investment_tax);
+                    break;
+                case 'infrastructure':
+                    sorted.sort((a, b) => b.infrastructure_score - a.infrastructure_score);
+                    break;
+                case 'education':
+                    sorted.sort((a, b) => b.education_score - a.education_score);
+                    break;
+                case 'health':
+                    sorted.sort((a, b) => b.health_score - a.health_score);
+                    break;
+                case 'population':
+                    sorted.sort((a, b) => b.population - a.population);
+                    break;
+                default:
+                    sorted = originalCopelandRating;
+            }
+            
+            renderRatingTable(sorted);
+        }
+
+        // Отображение таблицы рейтинга
+        function renderRatingTable(provinces) {
+            if (!provinces || provinces.length === 0) {
+                document.getElementById('ratingContainer').innerHTML = '<p>Нет данных</p>';
+                return;
+            }
+            
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Место</th>
+                            <th>Провинция</th>
+                            <th>Счёт Коупленда</th>
+                            <th>ВВП 2022 (млрд USD)</th>
+                            <th>Налог на инвестиции (%)</th>
+                            <th>Инфраструктура (1-10)</th>
+                            <th>Образование (1-10)</th>
+                            <th>Здравоохранение (1-10)</th>
+                            <th>Население</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            provinces.forEach((prov, idx) => {
+                let rankClass = '';
+                if (idx === 0) rankClass = 'rating-rank-1';
+                if (idx === 1) rankClass = 'rating-rank-2';
+                if (idx === 2) rankClass = 'rating-rank-3';
+                
+                html += `
+                    <tr class="clickable-row ${rankClass}" onclick="window.location.href='/province-detail.html?id=${prov.id}'">
+                        <td><strong>${idx + 1}</strong></td>
+                        <td><strong>${prov.name}</strong></td>
+                        <td>${prov.copeland_score || 0}</td>
+                        <td>${prov.gdp_2022} млрд</td>
+                        <td>${prov.investment_tax}%</td>
+                        <td>${prov.infrastructure_score}/10</td>
+                        <td>${prov.education_score}/10</td>
+                        <td>${prov.health_score}/10</td>
+                        <td>${formatNumber(prov.population)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('ratingContainer').innerHTML = html;
+        }
+
+        // Загрузка рейтинга по правилу Коупленда
+        async function loadRating() {
+            try {
+                const response = await fetch('/api/rating/copeland');
+                const data = await response.json();
+                
+                // Матрица мажоритарного отношения
+                let matrixHtml = `
+                    <table class="data-table matrix-table">
+                        <thead>
+                            <tr><th></th>
+                `;
+                data.provinces.forEach(name => {
+                    matrixHtml += `<th>${name}</th>`;
+                });
+                matrixHtml += '</tr></thead><tbody>';
+                
+                for (let i = 0; i < data.matrix.length; i++) {
+                    matrixHtml += `<tr><th>${data.provinces[i]}</th>`;
+                    for (let j = 0; j < data.matrix[i].length; j++) {
+                        let value = data.matrix[i][j];
+                        let style = '';
+                        if (value === 1) style = 'style="background:#a8e6cf; font-weight:bold;"';
+                        if (value === -1) style = 'style="background:#ffd3b6; font-weight:bold;"';
+                        matrixHtml += `<td ${style}>${value}</td>`;
+                    }
+                    matrixHtml += '</tr>';
+                }
+                matrixHtml += '</tbody><tr>';
+                document.getElementById('matrixContainer').innerHTML = matrixHtml;
+                
+                // Сохраняем рейтинг
+                originalCopelandRating = data.rating;
+                currentRating = [...data.rating];
+                renderRatingTable(currentRating);
+                
+                // Подсвечиваем кнопку "По правилу Коупленда" как активную
+                document.getElementById('sort-copeland').classList.add('active');
+                
+            } catch (error) {
+                console.error('Ошибка загрузки рейтинга:', error);
+                document.getElementById('ratingContainer').innerHTML = '<p style="color: red;">Ошибка загрузки данных</p>';
+            }
+        }
+        
+        loadRating();
+        checkAuth();
+    </script>
+</body>
+</html>
