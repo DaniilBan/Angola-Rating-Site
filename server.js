@@ -4,10 +4,27 @@ const bcrypt = require('bcrypt');
 const cors = require('cors');
 const session = require('express-session');
 const path = require('path');
-require('dotenv').config();
-
 const multer = require('multer');
 const fs = require('fs');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'secret_key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { 
+        secure: false,
+        maxAge: 1000 * 60 * 60 * 24
+    }
+}));
 
 // Создаем папку для загрузки аватаров
 const uploadDir = path.join(__dirname, 'public/uploads/avatars');
@@ -15,7 +32,7 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Настройка multer
+// Настройка multer для аватаров
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, uploadDir);
@@ -41,27 +58,9 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: fileFilter
 });
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'secret_key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { 
-        secure: false,
-        maxAge: 1000 * 60 * 60 * 24 // 24 часа
-    }
-}));
 
 // Подключение к MySQL
 const db = mysql.createConnection({
@@ -81,12 +80,11 @@ db.connect((err) => {
 
 // ==================== АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦ ====================
 
-// Функция для создания таблиц при первом запуске
-function createTables() {
-    console.log('📦 Проверка и создание таблиц...');
-
-    // 1. Таблица пользователей
-    const createUsersTable = `
+function initDatabase() {
+    console.log('🔧 Проверка и создание таблиц...');
+    
+    // Таблица users
+    const createUsers = `
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
             username VARCHAR(50) UNIQUE NOT NULL,
@@ -100,34 +98,24 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             last_login TIMESTAMP NULL
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        )
     `;
-
-    // 2. Таблица провинций
-    const createProvincesTable = `
+    
+    // Таблица provinces (теперь это дивизионы Бангладеш)
+    const createProvinces = `
         CREATE TABLE IF NOT EXISTS provinces (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(100) NOT NULL,
-            gdp_2017 DECIMAL(15,2),
-            gdp_2018 DECIMAL(15,2),
-            gdp_2019 DECIMAL(15,2),
-            gdp_2020 DECIMAL(15,2),
-            gdp_2021 DECIMAL(15,2),
-            gdp_2022 DECIMAL(15,2),
-            investment_tax DECIMAL(5,2),
-            infrastructure_score DECIMAL(5,2),
-            education_score DECIMAL(5,2),
-            health_score DECIMAL(5,2),
-            population INT,
-            area DECIMAL(10,2),
             description TEXT,
             capital VARCHAR(100),
-            governor VARCHAR(100)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            governor VARCHAR(100),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
     `;
-
-    // 3. Таблица заметок
-    const createNotesTable = `
+    
+    // Таблица notes
+    const createNotes = `
         CREATE TABLE IF NOT EXISTS notes (
             id INT AUTO_INCREMENT PRIMARY KEY,
             province_id INT NOT NULL,
@@ -139,15 +127,12 @@ function createTables() {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (province_id) REFERENCES provinces(id) ON DELETE CASCADE,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            INDEX idx_province_id (province_id),
-            INDEX idx_user_id (user_id),
-            INDEX idx_priority (priority)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
     `;
-
-    // 4. Таблица лайков заметок
-    const createLikesTable = `
+    
+    // Таблица note_likes
+    const createLikes = `
         CREATE TABLE IF NOT EXISTS note_likes (
             id INT AUTO_INCREMENT PRIMARY KEY,
             note_id INT NOT NULL,
@@ -156,85 +141,169 @@ function createTables() {
             FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             UNIQUE KEY unique_like (note_id, user_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        )
     `;
-
-    // Выполняем создание таблиц
-    db.query(createUsersTable, (err) => {
-        if (err) console.error('❌ Ошибка создания таблицы users:', err);
+    
+    // Таблица attribute_definitions (характеристики Бангладеш)
+    const createAttributes = `
+        CREATE TABLE IF NOT EXISTS attribute_definitions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL UNIQUE,
+            label VARCHAR(200) NOT NULL,
+            type ENUM('number', 'text', 'boolean', 'date') DEFAULT 'text',
+            unit VARCHAR(50) NULL,
+            is_active BOOLEAN DEFAULT TRUE,
+            display_order INT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+    `;
+    
+    // Таблица attribute_values
+    const createAttributeValues = `
+        CREATE TABLE IF NOT EXISTS attribute_values (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            attribute_id INT NOT NULL,
+            province_id INT NOT NULL,
+            value_text TEXT NULL,
+            value_number DECIMAL(15,2) NULL,
+            value_boolean BOOLEAN NULL,
+            value_date DATE NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (attribute_id) REFERENCES attribute_definitions(id) ON DELETE CASCADE,
+            FOREIGN KEY (province_id) REFERENCES provinces(id) ON DELETE CASCADE,
+            UNIQUE KEY unique_province_attribute (attribute_id, province_id)
+        )
+    `;
+    
+    db.query(createUsers, (err) => {
+        if (err) console.error('❌ Ошибка users:', err);
         else console.log('✅ Таблица users готова');
     });
-
-    db.query(createProvincesTable, (err) => {
-        if (err) console.error('❌ Ошибка создания таблицы provinces:', err);
+    
+    db.query(createProvinces, (err) => {
+        if (err) console.error('❌ Ошибка provinces:', err);
         else console.log('✅ Таблица provinces готова');
     });
-
-    db.query(createNotesTable, (err) => {
-        if (err) console.error('❌ Ошибка создания таблицы notes:', err);
+    
+    db.query(createNotes, (err) => {
+        if (err) console.error('❌ Ошибка notes:', err);
         else console.log('✅ Таблица notes готова');
     });
-
-    db.query(createLikesTable, (err) => {
-        if (err) console.error('❌ Ошибка создания таблицы note_likes:', err);
+    
+    db.query(createLikes, (err) => {
+        if (err) console.error('❌ Ошибка note_likes:', err);
         else console.log('✅ Таблица note_likes готова');
     });
-
-    // После создания таблиц проверяем и добавляем начальные данные
-    setTimeout(() => {
-        checkAndInsertInitialData();
-    }, 1000);
-}
-
-// Функция для добавления начальных данных о провинциях
-function checkAndInsertInitialData() {
-    db.query('SELECT COUNT(*) as count FROM provinces', (err, results) => {
-        if (err) {
-            console.error('Ошибка проверки provinces:', err);
-            return;
-        }
-
-        if (results[0].count === 0) {
-            console.log('📝 Добавление начальных данных о провинциях...');
-            
-            const insertProvinces = `
-                INSERT INTO provinces (name, gdp_2017, gdp_2018, gdp_2019, gdp_2020, gdp_2021, gdp_2022, investment_tax, infrastructure_score, education_score, health_score, population, area, description, capital, governor) VALUES
-                ('Луанда', 120.5, 125.3, 130.1, 115.4, 128.7, 135.2, 15.5, 9.2, 8.7, 9.0, 8345000, 2418, 'Луанда - столица и крупнейший город Анголы, главный экономический центр страны.', 'Луанда', 'Мануэль Гомес'),
-                ('Уиже', 45.2, 47.1, 49.3, 44.5, 48.9, 52.1, 12.0, 6.5, 5.8, 6.2, 1450000, 58698, 'Уиже - провинция на севере Анголы, известная сельским хозяйством.', 'Уиже', 'Жозе Карвалью'),
-                ('Малаиже', 38.7, 40.2, 42.0, 38.1, 41.5, 44.8, 11.5, 5.9, 5.4, 5.7, 986000, 97602, 'Малаиже - провинция в центральной части Анголы.', 'Малаиже', 'Антонио Диаш'),
-                ('Бенгела', 55.6, 57.9, 60.4, 55.0, 59.8, 63.2, 13.0, 7.1, 6.8, 7.0, 2350000, 39827, 'Бенгела - важный портовый город на побережье Анголы.', 'Бенгела', 'Луиза Мария'),
-                ('Уамбо', 42.3, 44.0, 46.1, 41.8, 45.6, 48.9, 11.8, 6.2, 6.0, 6.3, 1890000, 35134, 'Уамбо - второй по величине город Анголы.', 'Уамбо', 'Карлос Фернандеш'),
-                ('Бие', 40.1, 41.8, 43.5, 39.2, 42.8, 45.6, 11.2, 6.0, 5.7, 6.1, 1455000, 70314, 'Бие - провинция в центральном нагорье Анголы.', 'Куито', 'Мария Сантуш'),
-                ('Моксико', 35.4, 36.9, 38.2, 34.5, 37.8, 40.1, 10.8, 5.5, 5.2, 5.4, 758000, 223023, 'Моксико - восточная провинция Анголы.', 'Луэна', 'Педру Гонсалвеш'),
-                ('Квандо-Кубанго', 32.1, 33.5, 34.8, 31.2, 34.1, 36.5, 10.5, 5.3, 5.0, 5.2, 534000, 199049, 'Квандо-Кубанго - крупнейшая провинция Анголы по площади.', 'Менонге', 'Франсишку Нето'),
-                ('Заире', 48.3, 50.1, 52.0, 47.5, 51.2, 54.8, 12.5, 6.8, 6.3, 6.7, 1095000, 40000, 'Заире - провинция на северо-западе Анголы.', 'Мбанза-Конго', 'Жуан Батишта'),
-                ('Кабинда', 62.4, 65.1, 67.8, 61.2, 66.5, 70.3, 14.0, 7.8, 7.2, 7.5, 716000, 7270, 'Кабинда - эксклав Анголы, крупный центр нефтедобычи.', 'Кабинда', 'Мигел Оливейра')
-            `;
-
-            db.query(insertProvinces, (err) => {
-                if (err) console.error('❌ Ошибка добавления данных:', err);
-                else console.log('✅ Добавлено 10 провинций');
-            });
-        } else {
-            console.log(`📊 В базе уже есть ${results[0].count} провинций`);
-        }
+    
+    db.query(createAttributes, (err) => {
+        if (err) console.error('❌ Ошибка attribute_definitions:', err);
+        else console.log('✅ Таблица attribute_definitions готова');
     });
+    
+    db.query(createAttributeValues, (err) => {
+        if (err) console.error('❌ Ошибка attribute_values:', err);
+        else console.log('✅ Таблица attribute_values готова');
+    });
+    
+    // Добавляем начальные данные для Бангладеш
+    setTimeout(() => {
+        db.query('SELECT COUNT(*) as count FROM provinces', (err, results) => {
+            if (!err && results[0].count === 0) {
+                console.log('📝 Добавление данных о дивизионах Бангладеш...');
+                
+                // Добавляем характеристики
+                db.query(`
+                    INSERT INTO attribute_definitions (name, label, type, display_order) VALUES
+                    ('population', 'Население', 'text', 10),
+                    ('private_investment', 'Частные инвестиции', 'text', 20),
+                    ('minerals', 'Полезные ископаемые', 'text', 30),
+                    ('tourism_potential', 'Туристический потенциал', 'text', 40)
+                `, (err) => {
+                    if (err) console.error('❌ Ошибка добавления характеристик:', err);
+                    else console.log('✅ Характеристики добавлены');
+                });
+                
+                // Добавляем дивизионы
+                const insertProvinces = `
+                    INSERT INTO provinces (name, description, capital, governor) VALUES
+                    ('Дакка', 'Столичный дивизион Бангладеш, крупнейший экономический центр страны.', 'Дакка', 'Абдул Маннан'),
+                    ('Читтагонг', 'Второй по величине дивизион, важный портовый регион.', 'Читтагонг', 'Мохаммад Абдул Маннан'),
+                    ('Силхет', 'Северо-восточный регион, известный чайными плантациями.', 'Силхет', 'Джаханг Хоссейн'),
+                    ('Кхулна', 'Юго-западный регион, где находится Сундарбан.', 'Кхулна', 'Мохаммад Абдул Азиз'),
+                    ('Раджшахи', 'Северный регион, аграрный центр Бангладеш.', 'Раджшахи', 'Абдул Хамид'),
+                    ('Рангпур', 'Северный регион, известный историческими дворцами.', 'Рангпур', 'Мохаммад Ильяс'),
+                    ('Маймансингх', 'Центральный регион с развитым сельским туризмом.', 'Маймансингх', 'Мохаммад Шахидулла'),
+                    ('Барисал', 'Южный регион с речными круизами и офшорным газом.', 'Барисал', 'Мохаммад Хан')
+                `;
+                
+                db.query(insertProvinces, (err) => {
+                    if (err) {
+                        console.error('❌ Ошибка добавления дивизионов:', err);
+                        return;
+                    }
+                    console.log('✅ Добавлены дивизионы Бангладеш');
+                    
+                    // Добавляем значения характеристик
+                    const insertValues = `
+                        INSERT INTO attribute_values (attribute_id, province_id, value_text) VALUES
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Дакка'), 'более 20 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Дакка'), 'Очень высокие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Дакка'), 'Природный газ (ограниченно)'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Дакка'), 'Исторические памятники'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Читтагонг'), 'более 9 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Читтагонг'), 'Высокие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Читтагонг'), 'Природный газ, известняк'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Читтагонг'), 'Холмы, пляжи'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Силхет'), 'около 3,5 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Силхет'), 'Средние'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Силхет'), 'Природный газ (крупные)'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Силхет'), 'Чайные сады'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Кхулна'), 'около 5 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Кхулна'), 'Средние'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Кхулна'), 'Лесные ресурсы'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Кхулна'), 'Сундарбан (ЮНЕСКО)'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Раджшахи'), 'более 6 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Раджшахи'), 'Низкие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Раджшахи'), 'Сельскохозяйственные земли'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Раджшахи'), 'Исторические памятники'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Рангпур'), 'около 3 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Рангпур'), 'Низкие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Рангпур'), 'Уголь (ограниченно)'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Рангпур'), 'Дворцы, реки'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Маймансингх'), 'около 3 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Маймансингх'), 'Низкие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Маймансингх'), 'Нет'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Маймансингх'), 'Сельский туризм'),
+                        
+                        ((SELECT id FROM attribute_definitions WHERE name = 'population'), (SELECT id FROM provinces WHERE name = 'Барисал'), 'около 4 млн'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'private_investment'), (SELECT id FROM provinces WHERE name = 'Барисал'), 'Низкие'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'minerals'), (SELECT id FROM provinces WHERE name = 'Барисал'), 'Природный газ (офшорные)'),
+                        ((SELECT id FROM attribute_definitions WHERE name = 'tourism_potential'), (SELECT id FROM provinces WHERE name = 'Барисал'), 'Речные круизы')
+                    `;
+                    
+                    db.query(insertValues, (err) => {
+                        if (err) console.error('❌ Ошибка добавления значений:', err);
+                        else console.log('✅ Добавлены значения характеристик');
+                    });
+                });
+            }
+        });
+    }, 3000);
 }
 
 // Запускаем создание таблиц
-createTables();
-
-// Middleware для проверки авторизации
-const requireAuth = (req, res, next) => {
-    if (!req.session.userId) {
-        return res.status(401).json({ error: 'Необходима авторизация' });
-    }
-    next();
-};
+initDatabase();
 
 // ==================== АВТОРИЗАЦИЯ ====================
 
-// Регистрация с выбором роли
 app.post('/api/register', async (req, res) => {
     const { username, email, password, role, adminCode } = req.body;
     
@@ -242,9 +311,7 @@ app.post('/api/register', async (req, res) => {
         return res.status(400).json({ error: 'Все поля обязательны' });
     }
     
-    // Определяем реальную роль
     let userRole = 'user';
-    
     if (role === 'admin') {
         if (adminCode !== '1488228') {
             return res.status(403).json({ error: 'Неверный код администратора!' });
@@ -270,7 +337,6 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// Вход с получением роли
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
@@ -299,13 +365,12 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// Получение данных текущего пользователя (с ролью)
 app.get('/api/me', (req, res) => {
     if (!req.session.userId) {
         return res.status(401).json({ error: 'Не авторизован' });
     }
     
-    db.query('SELECT id, username, email, role, created_at FROM users WHERE id = ?', 
+    db.query('SELECT id, username, email, role, full_name, avatar, created_at FROM users WHERE id = ?', 
         [req.session.userId], 
         (err, results) => {
             if (err || results.length === 0) {
@@ -315,7 +380,6 @@ app.get('/api/me', (req, res) => {
         });
 });
 
-// Выход
 app.post('/api/logout', (req, res) => {
     req.session.destroy((err) => {
         if (err) {
@@ -325,229 +389,11 @@ app.post('/api/logout', (req, res) => {
     });
 });
 
-// ==================== ДАННЫЕ О ПРОВИНЦИЯХ ====================
+// ==================== ПРОФИЛЬ ====================
 
-// Получение всех провинций
-app.get('/api/provinces', (req, res) => {
-    db.query('SELECT * FROM provinces ORDER BY name', (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-// Получение провинции по ID
-app.get('/api/provinces/:id', (req, res) => {
-    db.query('SELECT * FROM provinces WHERE id = ?', [req.params.id], (err, results) => {
-        if (err || results.length === 0) {
-            return res.status(404).json({ error: 'Провинция не найдена' });
-        }
-        res.json(results[0]);
-    });
-});
-
-// ==================== РЕЙТИНГ ПО ПРАВИЛУ КОУПЛЕНДА ====================
-
-app.get('/api/rating/copeland', (req, res) => {
-    db.query('SELECT * FROM provinces', (err, provinces) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-
-        const n = provinces.length;
-        const matrix = Array(n).fill().map(() => Array(n).fill(0));
-        const copelandScores = Array(n).fill(0);
-        
-        // Критерии для сравнения
-        const criteria = [
-            { key: 'gdp_2022', type: 'max' },
-            { key: 'investment_tax', type: 'min' },
-            { key: 'infrastructure_score', type: 'max' },
-            { key: 'education_score', type: 'max' },
-            { key: 'health_score', type: 'max' },
-            { key: 'population', type: 'max' }
-        ];
-
-        for (let i = 0; i < n; i++) {
-            for (let j = i + 1; j < n; j++) {
-                let scoreI = 0, scoreJ = 0;
-                
-                for (const criterion of criteria) {
-                    const valI = provinces[i][criterion.key];
-                    const valJ = provinces[j][criterion.key];
-                    
-                    if (criterion.type === 'max') {
-                        if (valI > valJ) scoreI++;
-                        else if (valI < valJ) scoreJ++;
-                    } else if (criterion.type === 'min') {
-                        if (valI < valJ) scoreI++;
-                        else if (valI > valJ) scoreJ++;
-                    }
-                }
-                
-                if (scoreI > scoreJ) {
-                    matrix[i][j] = 1;
-                    matrix[j][i] = -1;
-                    copelandScores[i]++;
-                    copelandScores[j]--;
-                } else if (scoreI < scoreJ) {
-                    matrix[i][j] = -1;
-                    matrix[j][i] = 1;
-                    copelandScores[i]--;
-                    copelandScores[j]++;
-                }
-            }
-        }
-
-        const rating = provinces.map((p, idx) => ({
-            ...p,
-            copeland_score: copelandScores[idx],
-            rank: 0
-        })).sort((a, b) => b.copeland_score - a.copeland_score);
-        
-        // Добавляем место в рейтинге
-        rating.forEach((item, idx) => {
-            item.rank = idx + 1;
-        });
-
-        res.json({ 
-            rating, 
-            matrix, 
-            provinces: provinces.map(p => p.name),
-            criteria: criteria.map(c => c.key)
-        });
-    });
-});
-
-// ==================== ЭКОНОМИЧЕСКАЯ СТАТИСТИКА ====================
-
-app.get('/api/economy/gdp-trend', (req, res) => {
-    db.query(`
-        SELECT name, 
-               gdp_2017, gdp_2018, gdp_2019, gdp_2020, gdp_2021, gdp_2022,
-               ROUND(((gdp_2022 - gdp_2017) / gdp_2017 * 100), 2) as growth_percent
-        FROM provinces 
-        ORDER BY gdp_2022 DESC
-    `, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-app.get('/api/economy/tax-comparison', (req, res) => {
-    db.query(`
-        SELECT name, investment_tax, gdp_2022,
-               ROUND(gdp_2022 / investment_tax, 2) as gdp_per_tax
-        FROM provinces 
-        ORDER BY investment_tax ASC
-    `, (err, results) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json(results);
-    });
-});
-
-// ==================== АДМИН API ДЛЯ РЕДАКТИРОВАНИЯ ====================
-
-// Получить все провинции (уже есть, но добавим для админки)
-app.get('/api/admin/provinces', (req, res) => {
-    db.query('SELECT * FROM provinces ORDER BY id', (err, results) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(results);
-    });
-});
-
-// Добавить новую провинцию
-app.post('/api/admin/provinces', (req, res) => {
-    const { name, gdp_2022, investment_tax, infrastructure_score, education_score, health_score, population } = req.body;
-    
-    if (!name) {
-        return res.status(400).json({ error: 'Название провинции обязательно' });
-    }
-    
-    const currentYear = new Date().getFullYear();
-    const defaultGdp = gdp_2022 || 0;
-    
-    db.query(
-        `INSERT INTO provinces 
-        (name, gdp_2017, gdp_2018, gdp_2019, gdp_2020, gdp_2021, gdp_2022, 
-         investment_tax, infrastructure_score, education_score, health_score, population, area) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [name, defaultGdp, defaultGdp, defaultGdp, defaultGdp, defaultGdp, defaultGdp,
-         investment_tax || 0, infrastructure_score || 0, education_score || 0, health_score || 0, population || 0, 0],
-        (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: 'Ошибка базы данных: ' + err.message });
-            }
-            res.json({ id: result.insertId, message: 'Провинция добавлена' });
-        }
-    );
-});
-
-// Обновить провинцию
-app.put('/api/admin/provinces/:id', (req, res) => {
-    const { name, gdp_2022, investment_tax, infrastructure_score, education_score, health_score, population } = req.body;
-    const id = req.params.id;
-    
-    db.query(
-        `UPDATE provinces SET 
-         name = ?, 
-         gdp_2022 = ?, 
-         investment_tax = ?, 
-         infrastructure_score = ?, 
-         education_score = ?, 
-         health_score = ?, 
-         population = ? 
-         WHERE id = ?`,
-        [name, gdp_2022, investment_tax, infrastructure_score, education_score, health_score, population, id],
-        (err, result) => {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ error: 'Ошибка обновления: ' + err.message });
-            }
-            if (result.affectedRows === 0) {
-                return res.status(404).json({ error: 'Провинция не найдена' });
-            }
-            res.json({ message: 'Провинция обновлена' });
-        }
-    );
-});
-
-// Удалить провинцию
-app.delete('/api/admin/provinces/:id', (req, res) => {
-    db.query('DELETE FROM provinces WHERE id = ?', [req.params.id], (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Провинция не найдена' });
-        }
-        res.json({ message: 'Провинция удалена' });
-    });
-});
-
-// Очистить все провинции
-app.delete('/api/admin/provinces', (req, res) => {
-    db.query('TRUNCATE TABLE provinces', (err, result) => {
-        if (err) {
-            return res.status(500).json({ error: err.message });
-        }
-        res.json({ message: 'Все провинции удалены' });
-    });
-});
-
-// ==================== УПРАВЛЕНИЕ ПРОФИЛЕМ ====================
-
-// Получение полного профиля пользователя
 app.get('/api/profile/:id', (req, res) => {
     const userId = req.params.id;
     
-    // Проверка прав (можно смотреть только свой профиль или админу)
     if (req.session.userId != userId && req.session.role !== 'admin') {
         return res.status(403).json({ error: 'Нет доступа к этому профилю' });
     }
@@ -564,116 +410,61 @@ app.get('/api/profile/:id', (req, res) => {
     );
 });
 
-// Обновление профиля
-// Обновление профиля
 app.put('/api/profile/:id', async (req, res) => {
     const userId = req.params.id;
     const { full_name, email, phone, bio, current_password, new_password } = req.body;
     
-    console.log('=== ОБНОВЛЕНИЕ ПРОФИЛЯ ===');
-    console.log('UserId:', userId);
-    console.log('Session userId:', req.session.userId);
-    console.log('Данные:', { full_name, email, phone, bio });
-    
-    // Проверка прав
     if (req.session.userId != userId && req.session.role !== 'admin') {
-        console.log('Ошибка доступа!');
         return res.status(403).json({ error: 'Нет доступа' });
     }
     
-    // Простое обновление
-    const query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, bio = ? WHERE id = ?';
-    const params = [full_name || null, email, phone || null, bio || null, userId];
-    
-    console.log('SQL:', query);
-    console.log('Params:', params);
-    
-    db.query(query, params, (err, result) => {
-        if (err) {
-            console.error('Ошибка БД:', err);
-            if (err.code === 'ER_DUP_ENTRY') {
-                return res.status(400).json({ error: 'Email уже используется' });
+    if (new_password) {
+        db.query('SELECT password_hash FROM users WHERE id = ?', [userId], async (err, results) => {
+            if (err || results.length === 0) {
+                return res.status(404).json({ error: 'Пользователь не найден' });
             }
-            return res.status(500).json({ error: 'Ошибка обновления: ' + err.message });
-        }
-        
-        console.log('Обновлено строк:', result.affectedRows);
-        
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Пользователь не найден' });
-        }
-        
-        res.json({ message: 'Профиль обновлен успешно' });
-    });
-});
-
-function updateProfile(userId, updates, res) {
-    const { full_name, email, phone, bio, password_hash } = updates;
-    
-    let query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, bio = ?';
-    let params = [full_name || null, email, phone || null, bio || null];
-    
-    if (password_hash) {
-        query += ', password_hash = ?';
-        params.push(password_hash);
-    }
-    
-    query += ' WHERE id = ?';
-    params.push(userId);
-    
-    db.query(query, params, async (err, result) => {
-        if (err) {
-            if (err.code === 'ER_DUP_ENTRY') {
-                return res.status(400).json({ error: 'Email уже используется' });
+            
+            const validPassword = await bcrypt.compare(current_password, results[0].password_hash);
+            if (!validPassword) {
+                return res.status(401).json({ error: 'Текущий пароль неверен' });
             }
-            return res.status(500).json({ error: 'Ошибка обновления' });
-        }
-        
-        // Обновляем данные в сессии
-        if (req && req.session && req.session.userId == userId) {
-            // Получаем обновлённые данные пользователя
-            db.query('SELECT id, username, email, full_name, phone, bio, role, avatar FROM users WHERE id = ?', [userId], (err, userData) => {
-                if (!err && userData.length > 0) {
-                    req.session.username = userData[0].username;
-                    // Обновляем другие данные в сессии при необходимости
+            
+            const newHash = await bcrypt.hash(new_password, 10);
+            db.query(
+                'UPDATE users SET full_name = ?, email = ?, phone = ?, bio = ?, password_hash = ? WHERE id = ?',
+                [full_name || null, email, phone || null, bio || null, newHash, userId],
+                (err, result) => {
+                    if (err) {
+                        if (err.code === 'ER_DUP_ENTRY') {
+                            return res.status(400).json({ error: 'Email уже используется' });
+                        }
+                        return res.status(500).json({ error: 'Ошибка обновления' });
+                    }
+                    res.json({ message: 'Профиль обновлен успешно' });
                 }
-            });
-        }
-        
-        res.json({ message: 'Профиль обновлен успешно' });
-    });
-}
-
-// Обновление аватара
-app.post('/api/profile/:id/avatar', (req, res) => {
-    const userId = req.params.id;
-    const { avatar } = req.body;
-    
-    if (req.session.userId != userId && req.session.role !== 'admin') {
-        return res.status(403).json({ error: 'Нет доступа' });
+            );
+        });
+    } else {
+        db.query(
+            'UPDATE users SET full_name = ?, email = ?, phone = ?, bio = ? WHERE id = ?',
+            [full_name || null, email, phone || null, bio || null, userId],
+            (err, result) => {
+                if (err) {
+                    if (err.code === 'ER_DUP_ENTRY') {
+                        return res.status(400).json({ error: 'Email уже используется' });
+                    }
+                    return res.status(500).json({ error: 'Ошибка обновления' });
+                }
+                res.json({ message: 'Профиль обновлен успешно' });
+            }
+        );
     }
-    
-    db.query('UPDATE users SET avatar = ? WHERE id = ?', [avatar, userId], (err, result) => {
-        if (err) return res.status(500).json({ error: 'Ошибка обновления' });
-        res.json({ message: 'Аватар обновлен', avatar: avatar });
-    });
 });
-
-// Обновление последнего входа
-app.post('/api/profile/:id/last-login', (req, res) => {
-    db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [req.params.id], (err) => {
-        if (err) console.error(err);
-    });
-    res.json({ message: 'OK' });
-});
-
-// ==================== ЗАГРУЗКА АВАТАРА ====================
 
 // Загрузка аватара
 app.post('/api/profile/:id/upload-avatar', upload.single('avatar'), (req, res) => {
     const userId = req.params.id;
     
-    // Проверка прав
     if (req.session.userId != userId && req.session.role !== 'admin') {
         if (req.file) fs.unlinkSync(req.file.path);
         return res.status(403).json({ error: 'Нет доступа' });
@@ -685,7 +476,6 @@ app.post('/api/profile/:id/upload-avatar', upload.single('avatar'), (req, res) =
     
     const avatarPath = '/uploads/avatars/' + req.file.filename;
     
-    // Удаляем старый аватар
     db.query('SELECT avatar FROM users WHERE id = ?', [userId], (err, results) => {
         if (!err && results[0] && results[0].avatar && results[0].avatar.includes('/uploads/')) {
             const oldPath = path.join(__dirname, 'public', results[0].avatar);
@@ -694,21 +484,16 @@ app.post('/api/profile/:id/upload-avatar', upload.single('avatar'), (req, res) =
             }
         }
         
-        // Обновляем в БД
         db.query('UPDATE users SET avatar = ? WHERE id = ?', [avatarPath, userId], (err) => {
             if (err) {
                 return res.status(500).json({ error: 'Ошибка обновления' });
             }
-            res.json({ 
-                success: true,
-                message: 'Аватар загружен', 
-                avatar: avatarPath 
-            });
+            res.json({ success: true, message: 'Аватар загружен', avatar: avatarPath });
         });
     });
 });
 
-// Удаление аватара (сброс на стандартный)
+// Удаление аватара
 app.delete('/api/profile/:id/avatar', (req, res) => {
     const userId = req.params.id;
     
@@ -733,9 +518,177 @@ app.delete('/api/profile/:id/avatar', (req, res) => {
     });
 });
 
+// ==================== ПРОВИНЦИИ (ДИВИЗИОНЫ) ====================
+
+app.get('/api/provinces', (req, res) => {
+    db.query('SELECT * FROM provinces ORDER BY name', (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
+});
+
+app.get('/api/provinces/:id/detail', (req, res) => {
+    db.query('SELECT * FROM provinces WHERE id = ?', [req.params.id], (err, results) => {
+        if (err || results.length === 0) {
+            return res.status(404).json({ error: 'Провинция не найдена' });
+        }
+        res.json(results[0]);
+    });
+});
+
+// ==================== АДМИН ПРОВИНЦИЙ ====================
+
+app.get('/api/admin/provinces', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    db.query('SELECT * FROM provinces ORDER BY id', (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.post('/api/admin/provinces', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const { name, description, capital, governor } = req.body;
+    
+    if (!name) {
+        return res.status(400).json({ error: 'Название дивизиона обязательно' });
+    }
+    
+    db.query(
+        'INSERT INTO provinces (name, description, capital, governor) VALUES (?, ?, ?, ?)',
+        [name, description || null, capital || null, governor || null],
+        (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Ошибка базы данных: ' + err.message });
+            }
+            res.json({ id: result.insertId, message: 'Дивизион добавлен' });
+        }
+    );
+});
+
+app.put('/api/admin/provinces/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const { name, description, capital, governor } = req.body;
+    const id = req.params.id;
+    
+    db.query(
+        'UPDATE provinces SET name = ?, description = ?, capital = ?, governor = ? WHERE id = ?',
+        [name, description || null, capital || null, governor || null, id],
+        (err, result) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: 'Ошибка обновления: ' + err.message });
+            }
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Дивизион не найден' });
+            }
+            res.json({ message: 'Дивизион обновлён' });
+        }
+    );
+});
+
+app.delete('/api/admin/provinces/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    db.query('DELETE FROM provinces WHERE id = ?', [req.params.id], (err, result) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Дивизион не найден' });
+        }
+        res.json({ message: 'Дивизион удалён' });
+    });
+});
+
+app.delete('/api/admin/provinces', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    db.query('TRUNCATE TABLE provinces', (err, result) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ message: 'Все дивизионы удалены' });
+    });
+});
+
+// ==================== РЕЙТИНГ ====================
+
+app.get('/api/rating/copeland', (req, res) => {
+    db.query('SELECT * FROM provinces', (err, provinces) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+
+        const n = provinces.length;
+        const matrix = Array(n).fill().map(() => Array(n).fill(0));
+        const copelandScores = Array(n).fill(0);
+        
+        // Для Бангладеш используем другие критерии
+        // Так как у нас текстовые данные, используем другие поля
+        // В данном случае используем только ID для упрощения
+        // В реальном проекте здесь можно использовать другие числовые показатели
+        
+        // Используем порядок добавления как критерий
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                // Сравниваем по населению (по порядку в таблице)
+                let scoreI = 0, scoreJ = 0;
+                
+                // Используем порядок ID как критерий (чем меньше ID, тем выше рейтинг)
+                if (provinces[i].id < provinces[j].id) scoreI++;
+                else if (provinces[i].id > provinces[j].id) scoreJ++;
+                
+                if (scoreI > scoreJ) {
+                    matrix[i][j] = 1;
+                    matrix[j][i] = -1;
+                    copelandScores[i]++;
+                    copelandScores[j]--;
+                } else if (scoreI < scoreJ) {
+                    matrix[i][j] = -1;
+                    matrix[j][i] = 1;
+                    copelandScores[i]--;
+                    copelandScores[j]++;
+                }
+            }
+        }
+
+        const rating = provinces.map((p, idx) => ({
+            ...p,
+            copeland_score: copelandScores[idx],
+            rank: 0
+        })).sort((a, b) => b.copeland_score - a.copeland_score);
+        
+        rating.forEach((item, idx) => {
+            item.rank = idx + 1;
+        });
+
+        res.json({ 
+            rating, 
+            matrix, 
+            provinces: provinces.map(p => p.name)
+        });
+    });
+});
+
 // ==================== ЗАМЕТКИ ====================
 
-// Получить все заметки для провинции
 app.get('/api/provinces/:id/notes', (req, res) => {
     const provinceId = req.params.id;
     const userId = req.session.userId;
@@ -756,7 +709,6 @@ app.get('/api/provinces/:id/notes', (req, res) => {
     });
 });
 
-// Создать заметку
 app.post('/api/notes', (req, res) => {
     if (!req.session.userId) {
         return res.status(401).json({ error: 'Необходима авторизация' });
@@ -778,24 +730,6 @@ app.post('/api/notes', (req, res) => {
     );
 });
 
-// Обновить заметку
-app.put('/api/notes/:id', (req, res) => {
-    if (!req.session.userId) return res.status(401).json({ error: 'Не авторизован' });
-    
-    const { title, content, priority, is_public } = req.body;
-    
-    db.query(
-        'UPDATE notes SET title = ?, content = ?, priority = ?, is_public = ? WHERE id = ? AND user_id = ?',
-        [title, content, priority, is_public, req.params.id, req.session.userId],
-        (err, result) => {
-            if (err) return res.status(500).json({ error: err.message });
-            if (result.affectedRows === 0) return res.status(404).json({ error: 'Заметка не найдена' });
-            res.json({ message: 'Заметка обновлена' });
-        }
-    );
-});
-
-// Удалить заметку
 app.delete('/api/notes/:id', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: 'Не авторизован' });
     
@@ -805,13 +739,11 @@ app.delete('/api/notes/:id', (req, res) => {
     });
 });
 
-// Лайкнуть заметку
 app.post('/api/notes/:id/like', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: 'Не авторизован' });
     
     db.query('INSERT INTO note_likes (note_id, user_id) VALUES (?, ?)', [req.params.id, req.session.userId], (err) => {
         if (err && err.code === 'ER_DUP_ENTRY') {
-            // Удаляем лайк если уже есть
             db.query('DELETE FROM note_likes WHERE note_id = ? AND user_id = ?', [req.params.id, req.session.userId], (err2) => {
                 if (err2) return res.status(500).json({ error: err2.message });
                 res.json({ message: 'Лайк убран', liked: false });
@@ -824,59 +756,384 @@ app.post('/api/notes/:id/like', (req, res) => {
     });
 });
 
-// Получить все провинции с возможностью сортировки
-app.get('/api/provinces/sorted/:sort', (req, res) => {
-    const sort = req.params.sort;
-    let orderBy = '';
+// ==================== ДИНАМИЧЕСКИЕ ХАРАКТЕРИСТИКИ ====================
+
+// 1. Получить все провинции с характеристиками (для главной)
+app.get('/api/provinces/with-attributes', (req, res) => {
+    db.query('SELECT * FROM provinces ORDER BY name', (err, provinces) => {
+        if (err) {
+            console.error('Ошибка получения провинций:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        db.query('SELECT * FROM attribute_definitions WHERE is_active = 1 ORDER BY display_order', (err, attributes) => {
+            if (err) {
+                console.error('Ошибка получения атрибутов:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            db.query('SELECT * FROM attribute_values', (err, values) => {
+                if (err) {
+                    console.error('Ошибка получения значений:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                res.json({
+                    provinces: provinces,
+                    attributes: attributes,
+                    values: values
+                });
+            });
+        });
+    });
+});
+
+// 2. Получить одну провинцию с характеристиками (для карточки)
+app.get('/api/provinces/:id/with-attributes', (req, res) => {
+    const provinceId = req.params.id;
     
-    switch(sort) {
-        case 'name':
-            orderBy = 'name ASC';
-            break;
-        case 'gdp':
-            orderBy = 'gdp_2022 DESC';
-            break;
-        case 'tax':
-            orderBy = 'investment_tax ASC';
-            break;
-        case 'infrastructure':
-            orderBy = 'infrastructure_score DESC';
-            break;
-        case 'education':
-            orderBy = 'education_score DESC';
-            break;
-        case 'health':
-            orderBy = 'health_score DESC';
-            break;
-        case 'population':
-            orderBy = 'population DESC';
-            break;
-        default:
-            orderBy = 'name ASC';
+    db.query('SELECT * FROM provinces WHERE id = ?', [provinceId], (err, province) => {
+        if (err) {
+            console.error('Ошибка получения провинции:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        if (province.length === 0) {
+            return res.status(404).json({ error: 'Провинция не найдена' });
+        }
+        
+        db.query('SELECT * FROM attribute_definitions WHERE is_active = 1 ORDER BY display_order', (err, attributes) => {
+            if (err) {
+                console.error('Ошибка получения атрибутов:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            db.query('SELECT * FROM attribute_values WHERE province_id = ?', [provinceId], (err, values) => {
+                if (err) {
+                    console.error('Ошибка получения значений:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                res.json({
+                    province: province[0],
+                    attributes: attributes,
+                    values: values
+                });
+            });
+        });
+    });
+});
+
+// 3. Получить все характеристики для рейтинга
+app.get('/api/rating/with-attributes', (req, res) => {
+    db.query('SELECT * FROM provinces', (err, provinces) => {
+        if (err) {
+            console.error('Ошибка получения провинций:', err);
+            return res.status(500).json({ error: err.message });
+        }
+
+        const n = provinces.length;
+        const matrix = Array(n).fill().map(() => Array(n).fill(0));
+        const copelandScores = Array(n).fill(0);
+        
+        // Для Бангладеш используем порядок ID как критерий
+        for (let i = 0; i < n; i++) {
+            for (let j = i + 1; j < n; j++) {
+                let scoreI = 0, scoreJ = 0;
+                
+                if (provinces[i].id < provinces[j].id) scoreI++;
+                else if (provinces[i].id > provinces[j].id) scoreJ++;
+                
+                if (scoreI > scoreJ) {
+                    matrix[i][j] = 1;
+                    matrix[j][i] = -1;
+                    copelandScores[i]++;
+                    copelandScores[j]--;
+                } else if (scoreI < scoreJ) {
+                    matrix[i][j] = -1;
+                    matrix[j][i] = 1;
+                    copelandScores[i]--;
+                    copelandScores[j]++;
+                }
+            }
+        }
+
+        const rating = provinces.map((p, idx) => ({
+            ...p,
+            copeland_score: copelandScores[idx],
+            rank: 0
+        })).sort((a, b) => b.copeland_score - a.copeland_score);
+        
+        rating.forEach((item, idx) => {
+            item.rank = idx + 1;
+        });
+
+        db.query('SELECT * FROM attribute_definitions WHERE is_active = 1 ORDER BY display_order', (err, attributes) => {
+            if (err) {
+                console.error('Ошибка получения атрибутов:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            db.query('SELECT * FROM attribute_values', (err, values) => {
+                if (err) {
+                    console.error('Ошибка получения значений:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                res.json({ 
+                    rating, 
+                    matrix, 
+                    provinces: provinces.map(p => p.name),
+                    attributes: attributes,
+                    values: values
+                });
+            });
+        });
+    });
+});
+
+// 4. Получить все характеристики для экономики
+app.get('/api/economy/with-attributes', (req, res) => {
+    db.query('SELECT * FROM provinces ORDER BY name', (err, provinces) => {
+        if (err) {
+            console.error('Ошибка получения провинций:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        db.query('SELECT * FROM attribute_definitions WHERE is_active = 1 ORDER BY display_order', (err, attributes) => {
+            if (err) {
+                console.error('Ошибка получения атрибутов:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            
+            db.query('SELECT * FROM attribute_values', (err, values) => {
+                if (err) {
+                    console.error('Ошибка получения значений:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                res.json({ 
+                    provinces: provinces,
+                    attributes: attributes,
+                    values: values
+                });
+            });
+        });
+    });
+});
+
+// 5. Получить все определения характеристик (для админки)
+app.get('/api/admin/attributes', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
     }
     
-    console.log(`Сортировка: ${sort}, ORDER BY: ${orderBy}`); // Для отладки
-    
-    db.query(`SELECT * FROM provinces ORDER BY ${orderBy}`, (err, results) => {
+    db.query('SELECT * FROM attribute_definitions ORDER BY display_order', (err, results) => {
         if (err) {
-            console.error('Ошибка сортировки:', err);
+            console.error('Ошибка получения атрибутов:', err);
             return res.status(500).json({ error: err.message });
         }
         res.json(results);
     });
 });
 
-// Получить детальную информацию о провинции
-app.get('/api/provinces/:id/detail', (req, res) => {
-    db.query('SELECT * FROM provinces WHERE id = ?', [req.params.id], (err, results) => {
-        if (err || results.length === 0) {
-            return res.status(404).json({ error: 'Провинция не найдена' });
+// 6. Создать новую характеристику
+app.post('/api/admin/attributes', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const { name, label, type, unit } = req.body;
+    
+    if (!name || !label || !type) {
+        return res.status(400).json({ error: 'Имя, название и тип обязательны' });
+    }
+    
+    db.query('SELECT id FROM attribute_definitions WHERE name = ?', [name], (err, results) => {
+        if (err) {
+            console.error('Ошибка проверки:', err);
+            return res.status(500).json({ error: err.message });
         }
-        res.json(results[0]);
+        if (results.length > 0) {
+            return res.status(400).json({ error: 'Характеристика с таким именем уже существует' });
+        }
+        
+        db.query(
+            'INSERT INTO attribute_definitions (name, label, type, unit, display_order) VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 10 FROM attribute_definitions))',
+            [name, label, type, unit || null],
+            (err, result) => {
+                if (err) {
+                    console.error('Ошибка создания:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ id: result.insertId, message: 'Характеристика создана' });
+            }
+        );
     });
 });
 
-// Запуск сервера
+// 7. Обновить характеристику
+app.put('/api/admin/attributes/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const { label, unit, is_active, display_order } = req.body;
+    const id = req.params.id;
+    
+    db.query(
+        'UPDATE attribute_definitions SET label = ?, unit = ?, is_active = ?, display_order = ? WHERE id = ?',
+        [label || null, unit || null, is_active !== undefined ? is_active : 1, display_order || 0, id],
+        (err, result) => {
+            if (err) {
+                console.error('Ошибка обновления:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Характеристика не найдена' });
+            }
+            res.json({ message: 'Характеристика обновлена' });
+        }
+    );
+});
+
+// 8. Удалить характеристику
+app.delete('/api/admin/attributes/:id', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const id = req.params.id;
+    
+    db.query('DELETE FROM attribute_values WHERE attribute_id = ?', [id], (err) => {
+        if (err) {
+            console.error('Ошибка удаления значений:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        db.query('DELETE FROM attribute_definitions WHERE id = ?', [id], (err) => {
+            if (err) {
+                console.error('Ошибка удаления атрибута:', err);
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ message: 'Характеристика удалена' });
+        });
+    });
+});
+
+// 9. Сохранить значения характеристик (только админ)
+app.post('/api/admin/provinces/:id/attributes', (req, res) => {
+    if (req.session.role !== 'admin') {
+        return res.status(403).json({ error: 'Доступ только для администратора' });
+    }
+    
+    const provinceId = req.params.id;
+    const { attributes } = req.body;
+    
+    if (!attributes || typeof attributes !== 'object') {
+        return res.status(400).json({ error: 'Некорректные данные' });
+    }
+    
+    db.query('SELECT id, type FROM attribute_definitions', (err, attrDefs) => {
+        if (err) {
+            console.error('Ошибка получения типов:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        
+        const attrMap = {};
+        attrDefs.forEach(a => attrMap[a.id] = a.type);
+        
+        let completed = 0;
+        const total = Object.keys(attributes).length;
+        let hasError = false;
+        
+        if (total === 0) {
+            return res.json({ message: 'Нет данных для сохранения' });
+        }
+        
+        for (const [attributeId, value] of Object.entries(attributes)) {
+            const type = attrMap[attributeId];
+            if (!type) {
+                completed++;
+                continue;
+            }
+            
+            let valueText = null, valueNumber = null, valueBoolean = null, valueDate = null;
+            
+            if (value === '' || value === null || value === undefined) {
+                db.query('DELETE FROM attribute_values WHERE attribute_id = ? AND province_id = ?', 
+                    [attributeId, provinceId], () => {});
+                completed++;
+                continue;
+            }
+            
+            switch(type) {
+                case 'number':
+                    valueNumber = parseFloat(value);
+                    if (isNaN(valueNumber)) valueNumber = null;
+                    break;
+                case 'boolean':
+                    valueBoolean = value === true || value === 'true' || value === '1';
+                    break;
+                case 'date':
+                    valueDate = value;
+                    break;
+                default:
+                    valueText = String(value);
+            }
+            
+            db.query(
+                `INSERT INTO attribute_values (attribute_id, province_id, value_text, value_number, value_boolean, value_date)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                 value_text = VALUES(value_text),
+                 value_number = VALUES(value_number),
+                 value_boolean = VALUES(value_boolean),
+                 value_date = VALUES(value_date)`,
+                [attributeId, provinceId, valueText, valueNumber, valueBoolean, valueDate],
+                (err) => {
+                    if (err) { console.error(err); hasError = true; }
+                    completed++;
+                    if (completed === total) {
+                        if (hasError) res.status(500).json({ error: 'Часть данных не сохранена' });
+                        else res.json({ message: 'Данные сохранены' });
+                    }
+                }
+            );
+        }
+    });
+});
+
+// 10. Получить значения характеристик для провинции
+app.get('/api/provinces/:id/attributes', (req, res) => {
+    const provinceId = req.params.id;
+    
+    db.query(`
+        SELECT 
+            ad.id as attribute_id,
+            ad.name,
+            ad.label,
+            ad.type,
+            ad.unit,
+            av.id as value_id,
+            av.value_text,
+            av.value_number,
+            av.value_boolean,
+            av.value_date
+        FROM attribute_definitions ad
+        LEFT JOIN attribute_values av ON ad.id = av.attribute_id AND av.province_id = ?
+        WHERE ad.is_active = 1
+        ORDER BY ad.display_order
+    `, [provinceId], (err, results) => {
+        if (err) {
+            console.error('Ошибка получения значений:', err);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
+});
+
+// ==================== ЗАПУСК СЕРВЕРА ====================
+
 app.listen(PORT, () => {
     console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);
     console.log(`📊 Доступные страницы:`);
@@ -885,4 +1142,5 @@ app.listen(PORT, () => {
     console.log(`   - http://localhost:${PORT}/register.html - Регистрация`);
     console.log(`   - http://localhost:${PORT}/rating.html - Рейтинг`);
     console.log(`   - http://localhost:${PORT}/economy.html - Экономика`);
+    console.log(`   - http://localhost:${PORT}/admin.html - Админ-панель`);
 });

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Карточка провинции</title>
+    <title>Карточка дивизиона Бангладеш</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
         .province-header {
@@ -24,6 +24,11 @@
             padding: 15px;
             border-radius: 10px;
             text-align: center;
+            transition: transform 0.3s;
+        }
+        .stat-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .priority-1 { background: #e74c3c; color: white; }
         .priority-2 { background: #e67e22; color: white; }
@@ -36,12 +41,18 @@
             padding: 15px;
             margin-bottom: 15px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .note-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
         }
         .note-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            flex-wrap: wrap;
         }
         .note-title {
             font-size: 18px;
@@ -56,6 +67,10 @@
             cursor: pointer;
             color: #e74c3c;
             font-size: 18px;
+            transition: transform 0.3s;
+        }
+        .like-btn:hover {
+            transform: scale(1.2);
         }
         .modal {
             display: none;
@@ -82,6 +97,7 @@
             display: flex;
             gap: 10px;
             margin: 10px 0;
+            flex-wrap: wrap;
         }
         .priority-option {
             width: 40px;
@@ -92,37 +108,45 @@
             justify-content: center;
             cursor: pointer;
             font-weight: bold;
+            transition: transform 0.3s, opacity 0.3s;
+            opacity: 0.5;
         }
-        .edit-mode {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            padding: 20px;
-            border-radius: 10px;
+        .priority-option:hover {
+            transform: scale(1.1);
+            opacity: 0.8;
+        }
+        .priority-option.active {
+            opacity: 1;
+            transform: scale(1.1);
+            border: 2px solid #2c3e50;
+        }
+        .btn-small {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 0 3px;
+        }
+        .back-link {
+            display: inline-block;
             margin-bottom: 20px;
+            color: #3498db;
+            text-decoration: none;
         }
-        .edit-mode input, .edit-mode textarea {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0 15px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+        .back-link:hover {
+            text-decoration: underline;
         }
-        .btn-edit {
-            background: #f39c12;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
-        .btn-save {
-            background: #27ae60;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
+        @media (max-width: 600px) {
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .province-header {
+                padding: 20px;
+            }
+            .modal-content {
+                padding: 20px;
+            }
         }
     </style>
 </head>
@@ -135,14 +159,26 @@
                     <a href="/">Главная</a>
                     <a href="/rating.html">🏆 Рейтинг</a>
                     <a href="/economy.html">📊 Экономика</a>
-                    <div class="auth-buttons"></div>
+                    <div class="auth-buttons">
+                        <a href="/login.html">Вход</a>
+                        <a href="/register.html">Регистрация</a>
+                    </div>
                 </nav>
             </div>
         </div>
     </header>
 
     <main class="container">
+        <a href="/" class="back-link">← На главную</a>
+        
         <div id="provinceContent"></div>
+        
+        <div class="card">
+            <h2>📊 Характеристики дивизиона</h2>
+            <div id="attributesContainer">
+                <div class="loader"></div>
+            </div>
+        </div>
         
         <div class="card">
             <h2>📝 Заметки пользователей</h2>
@@ -151,7 +187,6 @@
         </div>
     </main>
 
-    <!-- Модальное окно добавления заметки -->
     <div id="noteModal" class="modal">
         <div class="modal-content">
             <h3>✏️ Новая заметка</h3>
@@ -180,7 +215,7 @@
                         <input type="checkbox" id="notePublic" checked> Публичная заметка
                     </label>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
                     <button type="submit" class="btn">Сохранить</button>
                     <button type="button" onclick="closeModal()" class="btn" style="background: #95a5a6;">Отмена</button>
                 </div>
@@ -193,10 +228,8 @@
         const urlParams = new URLSearchParams(window.location.search);
         const provinceId = urlParams.get('id');
         let currentUser = null;
-        let isEditing = false;
         let provinceData = null;
 
-        // Загрузка данных провинции
         async function loadProvinceDetail() {
             try {
                 const response = await fetch(`/api/provinces/${provinceId}/detail`);
@@ -209,127 +242,82 @@
             }
         }
 
-        // Режим редактирования (только для админа)
-        function enableEditMode() {
-            isEditing = true;
-            renderProvinceContent();
-        }
-
-        function cancelEdit() {
-            isEditing = false;
-            renderProvinceContent();
-        }
-
-        async function saveProvinceEdit() {
-            const updatedData = {
-                name: document.getElementById('edit-name').value,
-                description: document.getElementById('edit-description').value,
-                capital: document.getElementById('edit-capital').value,
-                governor: document.getElementById('edit-governor').value,
-                gdp_2022: parseFloat(document.getElementById('edit-gdp').value),
-                investment_tax: parseFloat(document.getElementById('edit-tax').value),
-                infrastructure_score: parseFloat(document.getElementById('edit-infra').value),
-                education_score: parseFloat(document.getElementById('edit-edu').value),
-                health_score: parseFloat(document.getElementById('edit-health').value),
-                population: parseInt(document.getElementById('edit-pop').value)
-            };
-            
-            const response = await fetch(`/api/admin/provinces/${provinceId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedData)
-            });
-            
-            if (response.ok) {
-                isEditing = false;
-                loadProvinceDetail();
-                alert('Данные обновлены!');
-            } else {
-                alert('Ошибка обновления');
-            }
-        }
-
         function renderProvinceContent() {
             if (!provinceData) return;
             
-            if (isEditing && currentUser && currentUser.role === 'admin') {
-                document.getElementById('provinceContent').innerHTML = `
-                    <div class="edit-mode">
-                        <h3>✏️ Режим редактирования</h3>
-                        <label>Название провинции:</label>
-                        <input type="text" id="edit-name" value="${escapeHtml(provinceData.name)}">
-                        
-                        <label>Описание:</label>
-                        <textarea id="edit-description" rows="3">${escapeHtml(provinceData.description || '')}</textarea>
-                        
-                        <label>Столица:</label>
-                        <input type="text" id="edit-capital" value="${escapeHtml(provinceData.capital || '')}">
-                        
-                        <label>Губернатор:</label>
-                        <input type="text" id="edit-governor" value="${escapeHtml(provinceData.governor || '')}">
-                        
-                        <label>ВВП 2022 (млрд USD):</label>
-                        <input type="number" id="edit-gdp" value="${provinceData.gdp_2022}" step="0.1">
-                        
-                        <label>Налог на инвестиции (%):</label>
-                        <input type="number" id="edit-tax" value="${provinceData.investment_tax}" step="0.5">
-                        
-                        <label>Инфраструктура (1-10):</label>
-                        <input type="number" id="edit-infra" value="${provinceData.infrastructure_score}" step="0.1" min="0" max="10">
-                        
-                        <label>Образование (1-10):</label>
-                        <input type="number" id="edit-edu" value="${provinceData.education_score}" step="0.1" min="0" max="10">
-                        
-                        <label>Здравоохранение (1-10):</label>
-                        <input type="number" id="edit-health" value="${provinceData.health_score}" step="0.1" min="0" max="10">
-                        
-                        <label>Население:</label>
-                        <input type="number" id="edit-pop" value="${provinceData.population}">
-                        
-                        <div style="margin-top: 20px;">
-                            <button onclick="saveProvinceEdit()" class="btn-save">💾 Сохранить</button>
-                            <button onclick="cancelEdit()" class="btn-edit">❌ Отмена</button>
-                        </div>
+            document.getElementById('provinceContent').innerHTML = `
+                <div class="province-header">
+                    <h2>${provinceData.name}</h2>
+                    <p>${provinceData.description || 'Нет описания'}</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <strong>🏛️ Столица</strong><br>
+                        ${provinceData.capital || '—'}
                     </div>
-                    <div class="province-header" style="margin-top: 20px;">
-                        <h2>${provinceData.name}</h2>
-                        <p>${provinceData.description || 'Нет описания'}</p>
+                    <div class="stat-item">
+                        <strong>👨‍💼 Губернатор</strong><br>
+                        ${provinceData.governor || '—'}
                     </div>
-                `;
-            } else {
-                let adminButtons = '';
-                if (currentUser && currentUser.role === 'admin') {
-                    adminButtons = `<button onclick="enableEditMode()" class="btn-edit" style="margin-bottom: 15px;">✏️ Редактировать карточку</button>`;
+                </div>
+            `;
+        }
+
+        async function loadProvinceAttributes() {
+            try {
+                const response = await fetch(`/api/provinces/${provinceId}/with-attributes`);
+                if (!response.ok) throw new Error('Ошибка загрузки');
+                const data = await response.json();
+                
+                if (!data.attributes || data.attributes.length === 0) {
+                    document.getElementById('attributesContainer').innerHTML = 
+                        '<p style="text-align:center;color:#999;padding:20px;">Нет характеристик для этого дивизиона</p>';
+                    return;
                 }
                 
-                document.getElementById('provinceContent').innerHTML = `
-                    ${adminButtons}
-                    <div class="province-header">
-                        <h2>${provinceData.name}</h2>
-                        <p>${provinceData.description || 'Нет описания'}</p>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-item"><strong>📊 ВВП 2022</strong><br>${provinceData.gdp_2022} млрд USD</div>
-                        <div class="stat-item"><strong>💰 Налог на инвестиции</strong><br>${provinceData.investment_tax}%</div>
-                        <div class="stat-item"><strong>🏗️ Инфраструктура</strong><br>${provinceData.infrastructure_score}/10</div>
-                        <div class="stat-item"><strong>🎓 Образование</strong><br>${provinceData.education_score}/10</div>
-                        <div class="stat-item"><strong>🏥 Здравоохранение</strong><br>${provinceData.health_score}/10</div>
-                        <div class="stat-item"><strong>👥 Население</strong><br>${formatNumber(provinceData.population)}</div>
-                        <div class="stat-item"><strong>🏛️ Столица</strong><br>${provinceData.capital || '—'}</div>
-                        <div class="stat-item"><strong>👨‍💼 Губернатор</strong><br>${provinceData.governor || '—'}</div>
-                    </div>
-                `;
+                let html = '<div class="stats-grid">';
+                data.attributes.forEach(attr => {
+                    const value = data.values.find(v => v.attribute_id === attr.id);
+                    let displayValue = '—';
+                    if (value) {
+                        if (value.value_text) {
+                            displayValue = value.value_text;
+                        } else if (value.value_number !== null) {
+                            displayValue = Number.isInteger(value.value_number) ? 
+                                value.value_number : 
+                                parseFloat(value.value_number).toFixed(1);
+                        } else if (value.value_boolean !== null) {
+                            displayValue = value.value_boolean ? '✅ Да' : '❌ Нет';
+                        } else if (value.value_date) {
+                            displayValue = value.value_date;
+                        }
+                    }
+                    
+                    html += `
+                        <div class="stat-item">
+                            <strong>${attr.label}</strong><br>
+                            <span style="font-size:20px;font-weight:bold;color:#2c3e50;">${displayValue}</span>
+                            ${attr.unit ? `<br><small style="color:#666;">${attr.unit}</small>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                document.getElementById('attributesContainer').innerHTML = html;
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                document.getElementById('attributesContainer').innerHTML = 
+                    '<p style="text-align:center;color:red;padding:20px;">❌ Ошибка загрузки характеристик</p>';
             }
         }
 
-        // Загрузка заметок (как в предыдущей версии)
         async function loadNotes() {
             try {
                 const response = await fetch(`/api/provinces/${provinceId}/notes`);
                 const notes = await response.json();
                 
                 if (notes.length === 0) {
-                    document.getElementById('notesList').innerHTML = '<p>Нет заметок. Будьте первым!</p>';
+                    document.getElementById('notesList').innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Нет заметок. Будьте первым!</p>';
                     return;
                 }
                 
@@ -343,11 +331,11 @@
                             <div class="note-header">
                                 <div>
                                     <span class="note-title">${escapeHtml(note.title)}</span>
-                                    <span class="priority-option ${priorityClass}" style="display: inline-block; width: 30px; height: 30px; font-size: 12px; margin-left: 10px;">${note.priority}</span>
+                                    <span class="priority-option ${priorityClass}" style="display:inline-block;width:30px;height:30px;font-size:12px;margin-left:10px;text-align:center;line-height:30px;border-radius:50%;">${note.priority}</span>
                                 </div>
                                 <div>
                                     <span class="like-btn" onclick="likeNote(${note.id})">❤️ ${note.likes_count || 0}</span>
-                                    ${canEdit ? `<button onclick="deleteNote(${note.id})" class="btn-small" style="background:#e74c3c;">🗑️</button>` : ''}
+                                    ${canEdit ? `<button onclick="deleteNote(${note.id})" class="btn-small" style="background:#e74c3c;color:white;">🗑️</button>` : ''}
                                 </div>
                             </div>
                             <div class="note-meta">
@@ -355,17 +343,17 @@
                                 📅 ${new Date(note.created_at).toLocaleString('ru-RU')}
                                 ${!note.is_public ? ' | 🔒 Приватная' : ''}
                             </div>
-                            <p style="margin-top: 10px;">${escapeHtml(note.content)}</p>
+                            <p style="margin-top:10px;white-space:pre-wrap;">${escapeHtml(note.content)}</p>
                         </div>
                     `;
                 }
                 document.getElementById('notesList').innerHTML = html;
             } catch (error) {
                 console.error('Ошибка:', error);
+                document.getElementById('notesList').innerHTML = '<p style="color:red;">Ошибка загрузки заметок</p>';
             }
         }
 
-        // Добавление заметки
         document.getElementById('noteForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -388,8 +376,9 @@
                 loadNotes();
                 document.getElementById('noteForm').reset();
                 document.getElementById('notePriority').value = 3;
+                document.querySelectorAll('.priority-option').forEach(o => o.classList.remove('active'));
             } else {
-                alert('Ошибка при создании заметки');
+                alert('❌ Ошибка при создании заметки');
             }
         });
 
@@ -404,8 +393,8 @@
 
         async function deleteNote(noteId) {
             if (confirm('Удалить заметку?')) {
-                await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
-                loadNotes();
+                const response = await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
+                if (response.ok) loadNotes();
             }
         }
 
@@ -413,8 +402,8 @@
             opt.addEventListener('click', function() {
                 const priority = this.dataset.priority;
                 document.getElementById('notePriority').value = priority;
-                document.querySelectorAll('.priority-option').forEach(o => o.style.opacity = '0.5');
-                this.style.opacity = '1';
+                document.querySelectorAll('.priority-option').forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
             });
         });
 
@@ -430,6 +419,12 @@
             document.getElementById('noteModal').style.display = 'none';
         }
 
+        document.getElementById('noteModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -437,19 +432,41 @@
             return div.innerHTML;
         }
 
+        function formatNumber(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + ' млн';
+            if (num >= 1000) return (num / 1000).toFixed(1) + ' тыс';
+            return num.toString();
+        }
+
         async function loadCurrentUser() {
-            const response = await fetch('/api/me');
-            if (response.ok) {
-                currentUser = await response.json();
-                if (!currentUser) document.getElementById('addNoteBtn').style.display = 'none';
-                renderProvinceContent();
+            try {
+                const response = await fetch('/api/me');
+                if (response.ok) {
+                    currentUser = await response.json();
+                    if (!currentUser) {
+                        document.getElementById('addNoteBtn').style.display = 'none';
+                    }
+                    loadProvinceAttributes();
+                } else {
+                    currentUser = null;
+                    document.getElementById('addNoteBtn').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки пользователя:', error);
+                currentUser = null;
             }
         }
 
-        loadCurrentUser();
-        loadProvinceDetail();
-        loadNotes();
-        checkAuth();
+        if (!provinceId) {
+            document.getElementById('provinceName').textContent = 'Ошибка';
+            document.getElementById('provinceContent').innerHTML = '<p style="color:red;text-align:center;padding:40px;">❌ Не указан ID дивизиона</p>';
+        } else {
+            loadCurrentUser();
+            loadProvinceDetail();
+            loadNotes();
+            checkAuth();
+        }
     </script>
 </body>
 </html>

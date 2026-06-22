@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админ панель - Управление провинциями Анголы</title>
+    <title>Админ панель - Управление дивизионами Бангладеш</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        /* Дополнительные стили для админки */
         .admin-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -42,7 +41,6 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
-            margin-bottom: 15px;
         }
         .form-group {
             display: flex;
@@ -54,11 +52,85 @@
             font-size: 14px;
             color: #555;
         }
-        .form-group input, .form-group select {
+        .form-group input, .form-group select, .form-group textarea {
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 14px;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-save {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-small {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         .province-card {
             background: white;
@@ -66,11 +138,6 @@
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 15px;
-            transition: all 0.3s;
-        }
-        .province-card:hover {
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
         }
         .province-title {
             font-size: 1.2em;
@@ -82,7 +149,7 @@
         }
         .province-fields {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 10px;
             margin: 15px 0;
         }
@@ -101,67 +168,18 @@
             border: 1px solid #ddd;
             border-radius: 4px;
         }
+        .field textarea {
+            padding: 5px;
+            font-size: 13px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+        }
         .btn-group {
             display: flex;
             gap: 10px;
             margin-top: 10px;
-        }
-        .btn-save {
-            background: #27ae60;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-delete {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-primary {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .btn-danger {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-warning {
-            background: #f39c12;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .message {
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            display: none;
-        }
-        .message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
         }
         .search-box {
             margin-bottom: 20px;
@@ -176,32 +194,58 @@
             border-radius: 5px;
             font-size: 16px;
         }
-        .rating-badge {
-            display: inline-block;
-            background: #3498db;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-left: 10px;
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .value-group {
+            margin-bottom: 15px;
+        }
+        .value-group label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .value-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-	<script>
-    // Проверка прав доступа
-    fetch('/api/me')
-        .then(res => res.json())
-        .then(user => {
-            if (!user || user.role !== 'admin') {
-                window.location.href = '/login.html?error=access_denied';
-            }
-        });
-</script>
     <div class="container">
         <div class="admin-header">
             <h1>🗄️ Панель администратора</h1>
-            <p>Управление данными о провинциях Анголы - добавление, редактирование, удаление</p>
+            <p>Управление дивизионами Бангладеш</p>
             <div style="margin-top: 10px;">
                 <a href="/" style="color: white; margin-right: 15px;">← На главную</a>
                 <a href="/rating.html" style="color: white; margin-right: 15px;">🏆 Рейтинг</a>
@@ -209,70 +253,51 @@
             </div>
         </div>
 
-        <!-- Статистика -->
-        <div class="stats-bar" id="stats">
+        <div class="stats-bar">
             <div class="stat-box">
                 <div class="stat-number" id="totalCount">0</div>
-                <div>Всего провинций</div>
+                <div>Всего дивизионов</div>
             </div>
             <div class="stat-box">
-                <div class="stat-number" id="avgGdp">0</div>
-                <div>Средний ВВП (млрд)</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="avgTax">0</div>
-                <div>Средний налог (%)</div>
+                <div class="stat-number" id="attrCount">4</div>
+                <div>Характеристик</div>
             </div>
         </div>
 
-        <!-- Форма добавления -->
+        <div id="message" class="message"></div>
+
+        <!-- Форма добавления нового дивизиона -->
         <div class="form-panel">
-            <h2>➕ Добавить новую провинцию</h2>
+            <h2>➕ Добавить новый дивизион</h2>
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Название провинции *</label>
-                    <input type="text" id="newName" placeholder="Например: Луанда">
+                    <label>Название *</label>
+                    <input type="text" id="newName" placeholder="Например: Дакка">
                 </div>
                 <div class="form-group">
-                    <label>ВВП 2022 (млрд USD)</label>
-                    <input type="number" id="newGdp" step="0.1" placeholder="135.2">
+                    <label>Столица</label>
+                    <input type="text" id="newCapital" placeholder="Например: Дакка">
                 </div>
                 <div class="form-group">
-                    <label>Налог на инвестиции (%)</label>
-                    <input type="number" id="newTax" step="0.5" placeholder="15.5">
+                    <label>Губернатор</label>
+                    <input type="text" id="newGovernor" placeholder="Например: Абдул Маннан">
                 </div>
-                <div class="form-group">
-                    <label>Инфраструктура (1-10)</label>
-                    <input type="number" id="newInfra" step="0.1" min="0" max="10" placeholder="9.2">
-                </div>
-                <div class="form-group">
-                    <label>Образование (1-10)</label>
-                    <input type="number" id="newEdu" step="0.1" min="0" max="10" placeholder="8.7">
-                </div>
-                <div class="form-group">
-                    <label>Здравоохранение (1-10)</label>
-                    <input type="number" id="newHealth" step="0.1" min="0" max="10" placeholder="9.0">
-                </div>
-                <div class="form-group">
-                    <label>Население</label>
-                    <input type="number" id="newPop" placeholder="8345000">
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Описание</label>
+                    <textarea id="newDescription" rows="2" placeholder="Краткое описание дивизиона..."></textarea>
                 </div>
             </div>
-            <button onclick="addProvince()" class="btn-primary">➕ Добавить провинцию</button>
+            <button onclick="addProvince()" class="btn-primary" style="margin-top:15px;">➕ Добавить дивизион</button>
         </div>
 
         <!-- Поиск -->
         <div class="search-box">
-            <input type="text" id="searchInput" placeholder="🔍 Поиск провинции по названию..." onkeyup="filterProvinces()">
+            <input type="text" id="searchInput" placeholder="🔍 Поиск дивизиона..." onkeyup="filterProvinces()">
         </div>
 
-        <!-- Сообщения -->
-        <div id="message" class="message"></div>
-
-        <!-- Список провинций -->
+        <!-- Список дивизионов -->
         <div class="form-panel">
-            <h2>✏️ Список провинций (кликните на поле для редактирования)</h2>
-            <p style="color: #666; font-size: 14px;">💡 Совет: Изменения сохраняются автоматически при потере фокуса или по кнопке "Сохранить"</p>
+            <h2>✏️ Управление дивизионами</h2>
             <div id="provincesList"></div>
         </div>
 
@@ -280,31 +305,42 @@
         <div class="form-panel">
             <h2>⚡ Быстрые действия</h2>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button onclick="addExampleProvinces()" class="btn-primary">📝 Добавить примеры провинций</button>
-                <button onclick="exportToJSON()" class="btn-warning">💾 Экспорт в JSON</button>
-                <button onclick="importFromJSON()" class="btn-warning">📂 Импорт из JSON</button>
-                <button onclick="clearAllProvinces()" class="btn-danger" style="background:#e74c3c;">⚠️ Очистить все провинции</button>
-                <button onclick="refreshData()" class="btn-primary" style="background:#95a5a6;">🔄 Обновить</button>
+                <button onclick="addExampleProvinces()" class="btn-primary">📝 Добавить примеры</button>
+                <button onclick="clearAllProvinces()" class="btn-danger">⚠️ Очистить все</button>
+                <button onclick="refreshData()" class="btn-warning">🔄 Обновить</button>
             </div>
         </div>
     </div>
 
-    <script>
-        // Глобальная переменная для хранения всех провинций
-        let allProvinces = [];
+    <!-- Модальное окно для редактирования характеристик -->
+    <div id="valueModal" class="modal">
+        <div class="modal-content">
+            <h3>✏️ Редактирование характеристик</h3>
+            <p id="modalProvinceName" style="color:#666; margin-bottom:15px;"></p>
+            <div id="valueForm"></div>
+            <div class="modal-actions">
+                <button onclick="saveProvinceValues()" class="btn-primary">💾 Сохранить</button>
+                <button onclick="closeValueModal()" class="btn-danger">Отмена</button>
+            </div>
+        </div>
+    </div>
 
-        // Показать сообщение
+    <script src="/js/main.js"></script>
+    <script>
+        let allProvinces = [];
+        let currentProvinceId = null;
+        let currentProvinceName = '';
+
         function showMessage(text, type = 'success') {
             const msgDiv = document.getElementById('message');
             msgDiv.textContent = text;
             msgDiv.className = `message ${type}`;
             msgDiv.style.display = 'block';
-            setTimeout(() => {
-                msgDiv.style.display = 'none';
-            }, 3000);
+            setTimeout(() => msgDiv.style.display = 'none', 3000);
         }
 
-        // Загрузка всех провинций
+        // ==================== ЗАГРУЗКА ПРОВИНЦИЙ ====================
+
         async function loadProvinces() {
             try {
                 const response = await fetch('/api/provinces');
@@ -312,81 +348,61 @@
                 updateStats();
                 renderProvinces();
             } catch (error) {
-                console.error('Ошибка загрузки:', error);
-                showMessage('Ошибка загрузки данных', 'error');
+                console.error('Ошибка:', error);
             }
         }
 
-        // Обновление статистики
         function updateStats() {
             document.getElementById('totalCount').textContent = allProvinces.length;
-            
-            if (allProvinces.length > 0) {
-                const avgGdp = (allProvinces.reduce((sum, p) => sum + parseFloat(p.gdp_2022), 0) / allProvinces.length).toFixed(1);
-                const avgTax = (allProvinces.reduce((sum, p) => sum + parseFloat(p.investment_tax), 0) / allProvinces.length).toFixed(1);
-                document.getElementById('avgGdp').textContent = avgGdp;
-                document.getElementById('avgTax').textContent = avgTax;
-            }
         }
 
-        // Фильтрация провинций по поиску
         function filterProvinces() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const filtered = allProvinces.filter(p => p.name.toLowerCase().includes(searchTerm));
             renderProvinces(filtered);
         }
 
-        // Отображение провинций
+        // ==================== ОТОБРАЖЕНИЕ ПРОВИНЦИЙ ====================
+
         function renderProvinces(provincesToShow = null) {
             const container = document.getElementById('provincesList');
             const provinces = provincesToShow || allProvinces;
             
             if (provinces.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #999;">Нет провинций. Добавьте первую!</p>';
+                container.innerHTML = '<p style="text-align:center; color:#999;">Нет дивизионов</p>';
                 return;
             }
 
             let html = '';
             provinces.forEach(prov => {
                 html += `
-                    <div class="province-card" id="prov-${prov.id}">
+                    <div class="province-card">
                         <div class="province-title">
                             ${prov.name}
-                            <span class="rating-badge">ID: ${prov.id}</span>
+                            <span style="font-size:12px; color:#666;">ID: ${prov.id}</span>
+                            <button onclick="editProvinceValues(${prov.id})" class="btn-small" style="background:#3498db; color:white; float:right;">✏️ Редактировать характеристики</button>
                         </div>
                         <div class="province-fields">
                             <div class="field">
                                 <label>Название</label>
-                                <input type="text" id="name-${prov.id}" value="${prov.name}" onchange="updateProvinceField(${prov.id}, 'name', this.value)">
+                                <input type="text" id="name-${prov.id}" value="${prov.name}">
                             </div>
                             <div class="field">
-                                <label>ВВП 2022 (млрд)</label>
-                                <input type="number" id="gdp-${prov.id}" value="${prov.gdp_2022}" step="0.1" onchange="updateProvinceField(${prov.id}, 'gdp_2022', this.value)">
+                                <label>Столица</label>
+                                <input type="text" id="capital-${prov.id}" value="${prov.capital || ''}">
                             </div>
                             <div class="field">
-                                <label>Налог на инвестиции (%)</label>
-                                <input type="number" id="tax-${prov.id}" value="${prov.investment_tax}" step="0.5" onchange="updateProvinceField(${prov.id}, 'investment_tax', this.value)">
+                                <label>Губернатор</label>
+                                <input type="text" id="governor-${prov.id}" value="${prov.governor || ''}">
                             </div>
-                            <div class="field">
-                                <label>Инфраструктура (1-10)</label>
-                                <input type="number" id="infra-${prov.id}" value="${prov.infrastructure_score}" step="0.1" min="0" max="10" onchange="updateProvinceField(${prov.id}, 'infrastructure_score', this.value)">
-                            </div>
-                            <div class="field">
-                                <label>Образование (1-10)</label>
-                                <input type="number" id="edu-${prov.id}" value="${prov.education_score}" step="0.1" min="0" max="10" onchange="updateProvinceField(${prov.id}, 'education_score', this.value)">
-                            </div>
-                            <div class="field">
-                                <label>Здравоохранение (1-10)</label>
-                                <input type="number" id="health-${prov.id}" value="${prov.health_score}" step="0.1" min="0" max="10" onchange="updateProvinceField(${prov.id}, 'health_score', this.value)">
-                            </div>
-                            <div class="field">
-                                <label>Население</label>
-                                <input type="number" id="pop-${prov.id}" value="${prov.population}" onchange="updateProvinceField(${prov.id}, 'population', this.value)">
+                            <div class="field" style="grid-column: span 2;">
+                                <label>Описание</label>
+                                <textarea id="description-${prov.id}" rows="2">${prov.description || ''}</textarea>
                             </div>
                         </div>
                         <div class="btn-group">
-                            <button onclick="saveProvince(${prov.id})" class="btn-save">💾 Сохранить изменения</button>
-                            <button onclick="deleteProvince(${prov.id})" class="btn-delete">🗑️ Удалить провинцию</button>
+                            <button onclick="saveProvince(${prov.id})" class="btn-save">💾 Сохранить</button>
+                            <button onclick="deleteProvince(${prov.id})" class="btn-delete">🗑️ Удалить</button>
                         </div>
                     </div>
                 `;
@@ -394,115 +410,86 @@
             container.innerHTML = html;
         }
 
-        // Обновление поля (автосохранение)
-        let updateTimeout;
-        function updateProvinceField(id, field, value) {
-            clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(() => {
-                saveProvince(id);
-            }, 1000);
-        }
+        // ==================== УПРАВЛЕНИЕ ПРОВИНЦИЯМИ ====================
 
-        // Сохранение провинции
         async function saveProvince(id) {
             const updatedProvince = {
                 name: document.getElementById(`name-${id}`).value,
-                gdp_2022: parseFloat(document.getElementById(`gdp-${id}`).value) || 0,
-                investment_tax: parseFloat(document.getElementById(`tax-${id}`).value) || 0,
-                infrastructure_score: parseFloat(document.getElementById(`infra-${id}`).value) || 0,
-                education_score: parseFloat(document.getElementById(`edu-${id}`).value) || 0,
-                health_score: parseFloat(document.getElementById(`health-${id}`).value) || 0,
-                population: parseInt(document.getElementById(`pop-${id}`).value) || 0
+                capital: document.getElementById(`capital-${id}`).value,
+                governor: document.getElementById(`governor-${id}`).value,
+                description: document.getElementById(`description-${id}`).value
             };
             
-            try {
-                const response = await fetch(`/api/admin/provinces/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updatedProvince)
-                });
-                
-                if (response.ok) {
-                    showMessage(`✅ Провинция "${updatedProvince.name}" сохранена!`, 'success');
-                    loadProvinces();
-                } else {
-                    showMessage('Ошибка сохранения', 'error');
-                }
-            } catch (error) {
-                showMessage('Ошибка сети', 'error');
+            const response = await fetch(`/api/admin/provinces/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedProvince)
+            });
+            
+            if (response.ok) {
+                showMessage('✅ Сохранено!', 'success');
+                loadProvinces();
+            } else {
+                showMessage('❌ Ошибка', 'error');
             }
         }
 
-        // Добавление провинции
         async function addProvince() {
             const name = document.getElementById('newName').value.trim();
             if (!name) {
-                showMessage('Введите название провинции!', 'error');
+                showMessage('Введите название!', 'error');
                 return;
             }
             
             const newProvince = {
                 name: name,
-                gdp_2022: parseFloat(document.getElementById('newGdp').value) || 0,
-                investment_tax: parseFloat(document.getElementById('newTax').value) || 0,
-                infrastructure_score: parseFloat(document.getElementById('newInfra').value) || 0,
-                education_score: parseFloat(document.getElementById('newEdu').value) || 0,
-                health_score: parseFloat(document.getElementById('newHealth').value) || 0,
-                population: parseInt(document.getElementById('newPop').value) || 0
+                capital: document.getElementById('newCapital').value.trim(),
+                governor: document.getElementById('newGovernor').value.trim(),
+                description: document.getElementById('newDescription').value.trim()
             };
             
-            try {
-                const response = await fetch('/api/admin/provinces', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newProvince)
-                });
-                
-                if (response.ok) {
-                    showMessage(`✅ Провинция "${name}" добавлена!`, 'success');
-                    // Очистить форму
-                    document.getElementById('newName').value = '';
-                    document.getElementById('newGdp').value = '';
-                    document.getElementById('newTax').value = '';
-                    document.getElementById('newInfra').value = '';
-                    document.getElementById('newEdu').value = '';
-                    document.getElementById('newHealth').value = '';
-                    document.getElementById('newPop').value = '';
-                    loadProvinces();
-                } else {
-                    showMessage('Ошибка добавления', 'error');
-                }
-            } catch (error) {
-                showMessage('Ошибка сети', 'error');
+            const response = await fetch('/api/admin/provinces', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newProvince)
+            });
+            
+            if (response.ok) {
+                showMessage(`✅ Дивизион "${name}" добавлен!`, 'success');
+                document.getElementById('newName').value = '';
+                document.getElementById('newCapital').value = '';
+                document.getElementById('newGovernor').value = '';
+                document.getElementById('newDescription').value = '';
+                loadProvinces();
+            } else {
+                const data = await response.json();
+                showMessage(data.error || 'Ошибка', 'error');
             }
         }
 
-        // Удаление провинции
         async function deleteProvince(id) {
-            const provinceName = document.getElementById(`name-${id}`).value;
-            if (confirm(`Удалить провинцию "${provinceName}"? Это действие нельзя отменить!`)) {
-                try {
-                    const response = await fetch(`/api/admin/provinces/${id}`, { method: 'DELETE' });
-                    if (response.ok) {
-                        showMessage(`✅ Провинция "${provinceName}" удалена`, 'success');
-                        loadProvinces();
-                    } else {
-                        showMessage('Ошибка удаления', 'error');
-                    }
-                } catch (error) {
-                    showMessage('Ошибка сети', 'error');
-                }
+            const name = document.getElementById(`name-${id}`).value;
+            if (!confirm(`Удалить "${name}"?`)) return;
+            
+            const response = await fetch(`/api/admin/provinces/${id}`, { method: 'DELETE' });
+            if (response.ok) {
+                showMessage(`✅ "${name}" удалён`, 'success');
+                loadProvinces();
             }
         }
 
-        // Добавление примеров
+        // ==================== ДОБАВЛЕНИЕ ПРИМЕРОВ ====================
+
         async function addExampleProvinces() {
             const examples = [
-                { name: 'Луанда', gdp_2022: 135.2, investment_tax: 15.5, infrastructure_score: 9.2, education_score: 8.7, health_score: 9.0, population: 8345000 },
-                { name: 'Уиже', gdp_2022: 52.1, investment_tax: 12.0, infrastructure_score: 6.5, education_score: 5.8, health_score: 6.2, population: 1450000 },
-                { name: 'Бенгела', gdp_2022: 63.2, investment_tax: 13.0, infrastructure_score: 7.1, education_score: 6.8, health_score: 7.0, population: 2350000 },
-                { name: 'Уамбо', gdp_2022: 48.9, investment_tax: 11.8, infrastructure_score: 6.2, education_score: 6.0, health_score: 6.3, population: 1890000 },
-                { name: 'Кабинда', gdp_2022: 70.3, investment_tax: 14.0, infrastructure_score: 7.8, education_score: 7.2, health_score: 7.5, population: 716000 }
+                { name: 'Дакка', capital: 'Дакка', governor: 'Абдул Маннан', description: 'Столичный дивизион, крупнейший экономический центр.' },
+                { name: 'Читтагонг', capital: 'Читтагонг', governor: 'Мохаммад Абдул Маннан', description: 'Второй по величине дивизион, важный портовый регион.' },
+                { name: 'Силхет', capital: 'Силхет', governor: 'Джаханг Хоссейн', description: 'Северо-восточный регион, известный чайными плантациями.' },
+                { name: 'Кхулна', capital: 'Кхулна', governor: 'Мохаммад Абдул Азиз', description: 'Юго-западный регион, где находится Сундарбан.' },
+                { name: 'Раджшахи', capital: 'Раджшахи', governor: 'Абдул Хамид', description: 'Северный регион, аграрный центр.' },
+                { name: 'Рангпур', capital: 'Рангпур', governor: 'Мохаммад Ильяс', description: 'Северный регион, известный историческими дворцами.' },
+                { name: 'Маймансингх', capital: 'Маймансингх', governor: 'Мохаммад Шахидулла', description: 'Центральный регион с развитым сельским туризмом.' },
+                { name: 'Барисал', capital: 'Барисал', governor: 'Мохаммад Хан', description: 'Южный регион с речными круизами и офшорным газом.' }
             ];
             
             for (const prov of examples) {
@@ -512,69 +499,105 @@
                     body: JSON.stringify(prov)
                 });
             }
-            showMessage('✅ Добавлены примеры провинций!', 'success');
+            showMessage('✅ Добавлены примеры дивизионов!', 'success');
             loadProvinces();
         }
 
-        // Экспорт в JSON
-        function exportToJSON() {
-            const dataStr = JSON.stringify(allProvinces, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            const exportFileDefaultName = `provinces_export_${new Date().toISOString().slice(0,19)}.json`;
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', exportFileDefaultName);
-            linkElement.click();
-            showMessage('✅ Данные экспортированы в JSON файл', 'success');
-        }
-
-        // Импорт из JSON
-        function importFromJSON() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = async (e) => {
-                const file = e.target.files[0];
-                const text = await file.text();
-                const provinces = JSON.parse(text);
-                
-                for (const prov of provinces) {
-                    await fetch('/api/admin/provinces', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(prov)
-                    });
-                }
-                showMessage('✅ Импорт завершен!', 'success');
-                loadProvinces();
-            };
-            input.click();
-        }
-
-        // Очистка всех провинций
         async function clearAllProvinces() {
-            if (confirm('⚠️ ВНИМАНИЕ! Это удалит ВСЕ провинции без возможности восстановления. Продолжить?')) {
-                if (confirm('Вы уверены? Введите "ДА" для подтверждения')) {
-                    const confirmText = prompt('Введите "ДА" для подтверждения');
-                    if (confirmText === 'ДА') {
-                        const response = await fetch('/api/admin/provinces', { method: 'DELETE' });
-                        if (response.ok) {
-                            showMessage('✅ Все провинции удалены', 'success');
-                            loadProvinces();
-                        }
-                    }
+            if (!confirm('Удалить ВСЕ дивизионы?')) return;
+            const confirmText = prompt('Введите "ДА" для подтверждения');
+            if (confirmText !== 'ДА') return;
+            
+            await fetch('/api/admin/provinces', { method: 'DELETE' });
+            showMessage('✅ Все удалены', 'success');
+            loadProvinces();
+        }
+
+        function refreshData() {
+            loadProvinces();
+            showMessage('🔄 Обновлено', 'success');
+        }
+
+        // ==================== РЕДАКТИРОВАНИЕ ЗНАЧЕНИЙ ХАРАКТЕРИСТИК ====================
+
+        async function editProvinceValues(provinceId) {
+            currentProvinceId = provinceId;
+            const province = allProvinces.find(p => p.id === provinceId);
+            currentProvinceName = province ? province.name : '';
+            
+            document.getElementById('modalProvinceName').textContent = `Дивизион: ${currentProvinceName}`;
+            
+            // Получаем характеристики и их значения
+            const attrsResponse = await fetch('/api/admin/attributes');
+            const attributes = await attrsResponse.json();
+            
+            const valuesResponse = await fetch(`/api/provinces/${provinceId}/attributes`);
+            const values = await valuesResponse.json();
+            
+            let html = '';
+            attributes.forEach(attr => {
+                const value = values.find(v => v.attribute_id === attr.id);
+                let currentValue = '';
+                if (value) {
+                    if (value.value_text) currentValue = value.value_text;
+                    else if (value.value_number !== null) currentValue = value.value_number;
+                    else if (value.value_boolean !== null) currentValue = value.value_boolean ? 'true' : 'false';
+                    else if (value.value_date) currentValue = value.value_date;
                 }
+                
+                html += `
+                    <div class="value-group">
+                        <label>${attr.label}${attr.unit ? ' (' + attr.unit + ')' : ''}</label>
+                        <input type="text" id="val-${attr.id}" value="${currentValue}" placeholder="Введите значение...">
+                    </div>
+                `;
+            });
+            
+            document.getElementById('valueForm').innerHTML = html;
+            document.getElementById('valueModal').style.display = 'flex';
+        }
+
+        function closeValueModal() {
+            document.getElementById('valueModal').style.display = 'none';
+            currentProvinceId = null;
+        }
+
+        async function saveProvinceValues() {
+            if (!currentProvinceId) return;
+            
+            const inputs = document.querySelectorAll('#valueForm input');
+            const attributes = {};
+            
+            inputs.forEach(input => {
+                const attrId = input.id.replace('val-', '');
+                attributes[attrId] = input.value;
+            });
+            
+            const response = await fetch(`/api/admin/provinces/${currentProvinceId}/attributes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ attributes })
+            });
+            
+            if (response.ok) {
+                showMessage('✅ Характеристики сохранены!', 'success');
+                closeValueModal();
+                loadProvinces();
+            } else {
+                showMessage('❌ Ошибка сохранения', 'error');
             }
         }
 
-        // Обновление данных
-        function refreshData() {
-            loadProvinces();
-            showMessage('🔄 Данные обновлены', 'success');
-        }
+        // Закрытие модального окна при клике вне его
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                closeValueModal();
+            }
+        });
 
-        // Загрузка при старте
+        // Инициализация
         loadProvinces();
+        checkAuth();
     </script>
 </body>
 </html>

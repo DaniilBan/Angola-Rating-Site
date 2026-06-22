@@ -3,15 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Экономика - Эволюция ВВП Анголы</title>
+    <title>Экономика - Экономическое развитие Бангладеш</title>
     <link rel="stylesheet" href="/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .clickable-row:hover {
+            background-color: #e8f4f8 !important;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .data-table th {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 12px 15px;
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .data-table td {
+            padding: 10px 15px;
+            text-align: center;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .data-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .data-table tr:hover {
+            background: #e8f4f8;
+        }
+        .loader {
+            text-align: center;
+            padding: 40px;
+        }
+        .loader::after {
+            content: "";
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .no-data {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-size: 16px;
+        }
+        .no-data .icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 15px;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        @media (max-width: 768px) {
+            .data-table {
+                font-size: 12px;
+            }
+            .data-table th,
+            .data-table td {
+                padding: 6px 8px;
+            }
+        }
+    </style>
 </head>
 <body>
     <header class="main-header">
         <div class="container">
-            <h1>📈 Экономическое развитие Анголы</h1>
-            <p>Динамика ВВП провинций 2017-2022</p>
+            <h1>📈 Экономическое развитие Бангладеш</h1>
+            <p>Экономические показатели дивизионов Бангладеш</p>
             <div class="nav-bar">
                 <nav>
                     <a href="/">Главная</a>
@@ -28,120 +114,210 @@
 
     <main class="container">
         <div class="card">
-            <h2>📊 Эволюция ВВП провинций (2017-2022)</h2>
-            <div class="chart-container">
-                <canvas id="gdpChart"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>💰 Налог на инвестиции vs ВВП</h2>
-            <div class="chart-container">
-                <canvas id="taxChart"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <h2>📋 Динамика роста ВВП по провинциям</h2>
-            <div class="table-wrapper" id="growthTable">
+            <h2>📊 Экономические показатели дивизионов</h2>
+            <div class="table-wrapper" id="economyTable">
                 <div class="loader"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Распределение инвестиций по дивизионам</h2>
+            <div class="chart-container">
+                <canvas id="investmentChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Туристический потенциал дивизионов</h2>
+            <div class="chart-container">
+                <canvas id="tourismChart"></canvas>
             </div>
         </div>
     </main>
 
     <script src="/js/main.js"></script>
     <script>
+        let allAttributes = [];
+        let allValues = [];
+
         async function loadEconomyData() {
             try {
-                const response = await fetch('/api/economy/gdp-trend');
+                const response = await fetch('/api/economy/with-attributes');
+                if (!response.ok) throw new Error('Ошибка загрузки');
                 const data = await response.json();
                 
-                // График ВВП
-                const years = ['2017', '2018', '2019', '2020', '2021', '2022'];
-                const datasets = data.map(prov => ({
-                    label: prov.name,
-                    data: [prov.gdp_2017, prov.gdp_2018, prov.gdp_2019, prov.gdp_2020, prov.gdp_2021, prov.gdp_2022],
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                }));
-                
-                const colors = ['#667eea', '#764ba2', '#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#1abc9c', '#e67e22', '#9b59b6', '#34495e'];
-                datasets.forEach((ds, idx) => {
-                    ds.borderColor = colors[idx % colors.length];
-                    ds.backgroundColor = colors[idx % colors.length];
+                allAttributes = data.attributes || [];
+                allValues = data.values || [];
+
+                if (!data.provinces || data.provinces.length === 0) {
+                    document.getElementById('economyTable').innerHTML = `
+                        <div class="no-data">
+                            <span class="icon">📭</span>
+                            Нет данных о дивизионах
+                        </div>
+                    `;
+                    return;
+                }
+
+                let headerHtml = '<thead><tr><th>🌍 Дивизион</th>';
+                data.attributes.forEach(attr => {
+                    headerHtml += `<th>${attr.label}</th>`;
                 });
-                
-                new Chart(document.getElementById('gdpChart'), {
-                    type: 'line',
-                    data: { labels: years, datasets: datasets },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            title: { display: true, text: 'Динамика ВВП провинций Анголы (млрд USD)' }
-                        },
-                        scales: { y: { beginAtZero: true, title: { display: true, text: 'ВВП (млрд USD)' } } }
-                    }
-                });
-                
-                // График налог vs ВВП
-                const taxResponse = await fetch('/api/economy/tax-comparison');
-                const taxData = await taxResponse.json();
-                
-                new Chart(document.getElementById('taxChart'), {
-                    type: 'bar',
-                    data: {
-                        labels: taxData.map(p => p.name),
-                        datasets: [
-                            {
-                                label: 'Налог на инвестиции (%)',
-                                data: taxData.map(p => p.investment_tax),
-                                backgroundColor: '#e74c3c',
-                                yAxisID: 'y'
-                            },
-                            {
-                                label: 'ВВП 2022 (млрд USD)',
-                                data: taxData.map(p => p.gdp_2022),
-                                backgroundColor: '#3498db',
-                                yAxisID: 'y1'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { position: 'top' } },
-                        scales: {
-                            y: { title: { display: true, text: 'Налог (%)' }, beginAtZero: true },
-                            y1: { position: 'right', title: { display: true, text: 'ВВП (млрд USD)' }, beginAtZero: true }
+                headerHtml += '</tr></thead>';
+
+                let rowsHtml = '<tbody>';
+                data.provinces.forEach(prov => {
+                    rowsHtml += `<tr onclick="window.location.href='/province-detail.html?id=${prov.id}'" class="clickable-row">`;
+                    rowsHtml += `<td><strong>${prov.name}</strong></td>`;
+                    data.attributes.forEach(attr => {
+                        const value = data.values.find(v => v.attribute_id === attr.id && v.province_id === prov.id);
+                        let displayValue = '—';
+                        if (value) {
+                            if (value.value_text) displayValue = value.value_text;
+                            else if (value.value_number !== null) displayValue = value.value_number;
+                            else if (value.value_boolean !== null) displayValue = value.value_boolean ? 'Да' : 'Нет';
+                            else if (value.value_date) displayValue = value.value_date;
                         }
-                    }
+                        rowsHtml += `<td>${displayValue}</td>`;
+                    });
+                    rowsHtml += '</tr>';
                 });
-                
-                // Таблица роста
-                let growthHtml = '<table class="data-table"><thead><tr><th>Провинция</th><th>ВВП 2017</th><th>ВВП 2022</th><th>Рост (%)</th><th>Тенденция</th></tr></thead><tbody>';
-                
-                data.forEach(prov => {
-                    const growthClass = prov.growth_percent > 0 ? 'growth-positive' : 'growth-negative';
-                    const trend = prov.growth_percent > 0 ? '📈' : '📉';
-                    growthHtml += `<tr>
-                        <td><strong>${prov.name}</strong></td>
-                        <td>${prov.gdp_2017} млрд</td>
-                        <td>${prov.gdp_2022} млрд</td>
-                        <td class="${growthClass}">${prov.growth_percent}%</td>
-                        <td>${trend}</td>
-                    </tr>`;
-                });
-                growthHtml += '</tbody></table>';
-                document.getElementById('growthTable').innerHTML = growthHtml;
-                
+                rowsHtml += '</tbody>';
+
+                document.getElementById('economyTable').innerHTML = `<table class="data-table">${headerHtml}${rowsHtml}</table>`;
+
+                createInvestmentChart(data);
+                createTourismChart(data);
+
             } catch (error) {
-                console.error('Ошибка загрузки экономических данных:', error);
+                console.error('Ошибка:', error);
+                document.getElementById('economyTable').innerHTML = `
+                    <div class="no-data" style="color:red;">
+                        <span class="icon">❌</span>
+                        Ошибка загрузки данных
+                    </div>
+                `;
             }
         }
-        
-        loadEconomyData();
-        checkAuth();
+
+        function createInvestmentChart(data) {
+            const investmentAttr = data.attributes.find(a => a.name === 'private_investment');
+            if (!investmentAttr) return;
+
+            const labels = [];
+            const values = [];
+            const colors = ['#3498db', '#2ecc71', '#f39c12', '#e74c3c', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+
+            data.provinces.forEach((prov, idx) => {
+                const value = data.values.find(v => v.attribute_id === investmentAttr.id && v.province_id === prov.id);
+                labels.push(prov.name);
+                values.push(value ? value.value_text || '—' : '—');
+            });
+
+            const valueColors = values.map(v => {
+                if (v.includes('Очень высокие') || v.includes('Высокие')) return '#27ae60';
+                if (v.includes('Средние')) return '#f39c12';
+                return '#e74c3c';
+            });
+
+            new Chart(document.getElementById('investmentChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Уровень частных инвестиций',
+                        data: values.map((v, i) => {
+                            if (v.includes('Очень высокие')) return 5;
+                            if (v.includes('Высокие')) return 4;
+                            if (v.includes('Средние')) return 3;
+                            if (v.includes('Низкие')) return 1;
+                            return 0;
+                        }),
+                        backgroundColor: valueColors,
+                        borderColor: '#2c3e50',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return values[context.dataIndex];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 6,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    if (value === 5) return 'Очень высокие';
+                                    if (value === 4) return 'Высокие';
+                                    if (value === 3) return 'Средние';
+                                    if (value === 2) return 'Ниже среднего';
+                                    if (value === 1) return 'Низкие';
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createTourismChart(data) {
+            const tourismAttr = data.attributes.find(a => a.name === 'tourism_potential');
+            if (!tourismAttr) return;
+
+            const labels = [];
+            const values = [];
+            const colors = ['#3498db', '#2ecc71', '#f39c12', '#e74c3c', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'];
+
+            data.provinces.forEach((prov, idx) => {
+                const value = data.values.find(v => v.attribute_id === tourismAttr.id && v.province_id === prov.id);
+                labels.push(prov.name);
+                values.push(value ? value.value_text || '—' : '—');
+            });
+
+            new Chart(document.getElementById('tourismChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values.map((v, i) => {
+                            return v.length || 1;
+                        }),
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return values[context.dataIndex];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEconomyData();
+            checkAuth();
+        });
     </script>
 </body>
 </html>
